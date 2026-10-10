@@ -1,0 +1,141 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\AcademicTerm;
+use App\Models\Assessment;
+use App\Models\ClassSection;
+use App\Models\ClearanceItem;
+use App\Models\Department;
+use App\Models\DocumentType;
+use App\Models\Enrollment;
+use App\Models\Grade;
+use App\Models\Office;
+use App\Models\Program;
+use App\Models\Role;
+use App\Models\Student;
+use App\Models\Subject;
+use App\Models\User;
+use App\Services\ClearanceService;
+use App\Services\DocumentRequestService;
+use App\Services\GradeService;
+use App\Services\LedgerService;
+use Illuminate\Database\Seeder;
+
+class DatabaseSeeder extends Seeder
+{
+    /** Every demo account uses this password. Change it before real use. */
+    public const DEMO_PASSWORD = 'Password123';
+
+    public function run(): void
+    {
+        $this->call(ReferenceSeeder::class);
+
+        $role = Role::pluck('id', 'name');
+        $office = Office::pluck('id', 'code');
+        $ccs = Department::where('code', 'CCS')->first();
+        $bsit = Program::where('code', 'BSIT')->first();
+
+        $staff = fn (string $username, string $name, string $roleName, array $extra = []) => User::create([
+            'username' => $username, 'name' => $name, 'role_id' => $role[$roleName],
+            'email' => "{$username}@college.test", 'password' => self::DEMO_PASSWORD,
+        ] + $extra);
+
+        $staff('admin', 'System Administrator', 'Administrator');
+        $registrar = $staff('registrar', 'Elena Ramos', 'Registrar', ['office_id' => $office['REG']]);
+        $cashier = $staff('cashier', 'Roberto Aquino', 'Cashier', ['office_id' => $office['CASH']]);
+        $faculty = $staff('faculty', 'Prof. Antonio Garcia', 'Faculty', ['department_id' => $ccs->id]);
+        $head = $staff('head', 'Dr. Lourdes Mendoza', 'Department Head', ['department_id' => $ccs->id]);
+        $library = $staff('library', 'Carmen Villanueva', 'Signatory', ['office_id' => $office['LIB']]);
+        $laboratory = $staff('laboratory', 'Ramon Castillo', 'Signatory', ['office_id' => $office['LAB']]);
+        $sao = $staff('sao', 'Teresa Navarro', 'Signatory', ['office_id' => $office['SAO']]);
+
+        $students = collect([
+            ['2026-00123', 'Dela Cruz', 'Juan', 'Santos', 'M'],
+            ['2026-00124', 'Santos', 'Maria', 'Lopez', 'F'],
+            ['2026-00125', 'Reyes', 'Jose', 'Bautista', 'M'],
+        ])->map(function ($row) use ($role, $bsit) {
+            [$no, $last, $first, $middle, $sex] = $row;
+            $user = User::create([
+                'username' => $no, 'name' => "{$first} {$last}", 'role_id' => $role['Student'],
+                'email' => "{$no}@student.college.test", 'password' => self::DEMO_PASSWORD,
+            ]);
+
+            return Student::create([
+                'user_id' => $user->id, 'student_no' => $no, 'last_name' => $last, 'first_name' => $first,
+                'middle_name' => $middle, 'sex' => $sex, 'program_id' => $bsit->id, 'year_level' => 3,
+            ]);
+        });
+        [$juan, $maria, $jose] = $students->all();
+
+        $past = AcademicTerm::create(['school_year' => '2025-2026', 'semester' => '2nd', 'grades_released' => true]);
+        $current = AcademicTerm::create(['school_year' => '2026-2027', 'semester' => '1st', 'is_active' => true, 'encoding_open' => true]);
+
+        $subject = fn (string $code, string $title) => Subject::create(['department_id' => $ccs->id, 'code' => $code, 'title' => $title, 'units' => 3]);
+        $section = fn (Subject $s, AcademicTerm $t, string $status = 'Draft') => ClassSection::create([
+            'subject_id' => $s->id, 'term_id' => $t->id, 'section_code' => 'BSIT-3A', 'faculty_id' => $faculty->id,
+            'sheet_status' => $status,
+            'approved_by' => $status === 'Approved' ? $head->id : null,
+            'approved_at' => $status === 'Approved' ? now()->subMonths(4) : null,
+        ]);
+        $enroll = function (ClassSection $sec, array $grades = []) use ($students, $faculty) {
+            foreach ($students as $i => $student) {
+                $enrollment = Enrollment::create(['student_id' => $student->id, 'section_id' => $sec->id]);
+                if (isset($grades[$i])) {
+                    [$midterm, $final] = $grades[$i];
+                    $rating = GradeService::finalRating($midterm, $final);
+                    Grade::create([
+                        'enrollment_id' => $enrollment->id, 'midterm_grade' => $midterm, 'final_grade' => $final,
+                        'final_rating' => $rating, 'remarks' => GradeService::remarks($rating), 'encoded_by' => $faculty->id,
+                    ]);
+                }
+            }
+        };
+
+        // Last term: approved and released, so students already have grades to view.
+        $enroll($section($subject('IT 221', 'Data Structures and Algorithms'), $past, 'Approved'), [[1.75, 1.50], [1.25, 1.25], [2.50, 3.00]]);
+        $enroll($section($subject('IT 222', 'Database Management Systems'), $past, 'Approved'), [[2.00, 1.75], [1.50, 1.25], [3.00, 2.75]]);
+
+        // This term: one sheet waiting for the Department Head, one half-encoded draft, two empty.
+        $enroll($section($subject('IT 311', 'Systems Analysis and Design'), $current, 'Submitted'), [[2.00, 1.50], [1.25, 1.50], [2.75, 2.50]]);
+        $enroll($section($subject('IT 312', 'Information Assurance and Security'), $current), [[1.75, null], [1.50, null]]);
+        $enroll($section($subject('IT 313', 'Web Systems and Technologies'), $current));
+        $enroll($section($subject('GE 105', 'Ethics'), $current));
+
+        $charges = [];
+        foreach ($students as $student) {
+            $charges[$student->id] = [
+                Assessment::create(['student_id' => $student->id, 'term_id' => $current->id, 'fee_type' => 'Tuition', 'description' => 'Tuition fee, 21 units', 'amount' => 15000]),
+                Assessment::create(['student_id' => $student->id, 'term_id' => $current->id, 'fee_type' => 'Miscellaneous', 'description' => 'Miscellaneous fees', 'amount' => 3500]),
+            ];
+            ClearanceService::ensureFor($student, $current);
+        }
+
+        // Juan: balance of 5,500, so the Cashier has not cleared him. Other offices have.
+        LedgerService::postPayment($charges[$juan->id][0], 13000, 'OR-0045801', 'Cash', $cashier);
+        // Maria: fully paid, every office cleared, waiting only for the Registrar's final clearance.
+        LedgerService::postPayment($charges[$maria->id][0], 15000, 'OR-0045802', 'Cash', $cashier);
+        LedgerService::postPayment($charges[$maria->id][1], 3500, 'OR-0045803', 'Bank Deposit', $cashier);
+
+        $sign = function (Student $student, string $code, User $by, string $status = 'Cleared', ?string $remarks = null) use ($current, $office) {
+            $item = ClearanceItem::where('office_id', $office[$code])
+                ->whereHas('clearance', fn ($q) => $q->where(['student_id' => $student->id, 'term_id' => $current->id]))->first();
+            ClearanceService::sign($item, $status, $remarks, $by);
+        };
+        foreach ([$juan, $maria] as $student) {
+            $sign($student, 'LIB', $library);
+            $sign($student, 'LAB', $laboratory);
+            $sign($student, 'SAO', $sao);
+            $sign($student, 'DEPT', $head);
+        }
+        // Jose: on hold at the Library.
+        $sign($jose, 'LIB', $library, 'On Hold', 'Unreturned book: Database System Concepts');
+
+        // Document requests at different stages.
+        $tor = DocumentType::where('name', 'Transcript of Records')->first();
+        $coe = DocumentType::where('name', 'Certificate of Enrollment')->first();
+        DocumentRequestService::file($juan, $tor, 2, 'Employment');
+        $paid = DocumentRequestService::file($maria, $coe, 1, 'Scholarship application');
+        LedgerService::postPayment($paid->assessment, $paid->total_fee, 'OR-0045804', 'Cash', $cashier);
+    }
+}
