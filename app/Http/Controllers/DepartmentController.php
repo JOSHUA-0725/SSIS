@@ -7,13 +7,79 @@ use App\Models\AuditLog;
 use App\Models\ClassSection;
 use App\Models\Grade;
 use App\Models\Notification;
+use App\Models\SlotRequest;
+use App\Models\Student;
+use App\Services\EnrollmentService;
 use App\Services\GradeService;
+use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
+    // ----- Faculty: enrollment of the department -----
+
+    public function enrollment(Request $request)
+    {
+        $departmentId = $request->user()->department_id;
+        abort_unless($departmentId, 403, 'Your account is not assigned to a department.');
+        $term = AcademicTerm::active();
+
+        $regulars = Student::where('year_level', '>', 1)->where('student_type', 'Regular')
+            ->whereNotIn('status', ['Graduated', 'Dropped'])
+            ->whereHas('program', fn ($q) => $q->where('department_id', $departmentId));
+
+        return view('department.enrollment', [
+            'term' => $term,
+            'department' => $request->user()->department,
+            'open' => $term && EnrollmentService::blockOpen($term->id, $departmentId),
+            'regulars' => (clone $regulars)->count(),
+            'regularsEnrolled' => $term ? (clone $regulars)->whereHas('enrollments.section', fn ($q) => $q->where('term_id', $term->id))->count() : 0,
+            'categories' => collect(EnrollmentService::SLOT_CATEGORIES)->mapWithKeys(fn ($category) => [$category => [
+                'approved' => $term ? EnrollmentService::approved($term->id, $departmentId, $category) : 0,
+                'used' => $term ? EnrollmentService::used($term->id, $departmentId, $category) : 0,
+            ]]),
+            'requests' => SlotRequest::with(['requester', 'decider'])->where('department_id', $departmentId)
+                ->where('term_id', $term?->id)->latest('id')->get(),
+        ]);
+    }
+
+    public function setBlockEnrollment(Request $request)
+    {
+        $data = $request->validate(['open' => ['required', 'boolean']]);
+        abort_unless($request->user()->department_id, 403);
+        $term = AcademicTerm::active();
+        if (! $term) {
+            return back()->withErrors(['open' => 'No term is active.']);
+        }
+
+        EnrollmentService::setBlockOpen($request->user(), $term, (bool) $data['open']);
+
+        return back()->with('status', $data['open'] ? 'Enrollment is open. Regular students can now enroll in their block sections.' : 'Enrollment is closed for regular students.');
+    }
+
+    public function requestSlots(Request $request)
+    {
+        $data = $request->validate([
+            'category' => ['required', Rule::in(EnrollmentService::SLOT_CATEGORIES)],
+            'slots' => ['required', 'integer', 'between:1,2000'],
+        ]);
+        abort_unless($request->user()->department_id, 403);
+        $term = AcademicTerm::active();
+        if (! $term) {
+            return back()->withErrors(['slots' => 'No term is active.']);
+        }
+
+        try {
+            EnrollmentService::requestSlots($request->user(), $term, $data['category'], (int) $data['slots']);
+        } catch (DomainException $e) {
+            return back()->withErrors(['slots' => $e->getMessage()])->withInput();
+        }
+
+        return back()->with('status', "Request for {$data['slots']} {$data['category']} slots sent to the Registrar.");
+    }
+
     // ----- Faculty: grade encoding -----
 
     public function classes(Request $request)

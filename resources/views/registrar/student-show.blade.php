@@ -34,6 +34,19 @@
                                 <label for="year_level" class="form-label">Year level</label>
                                 <input type="number" id="year_level" name="year_level" class="form-control" min="1" max="5" value="{{ old('year_level', $student->year_level) }}">
                             </div>
+                            <div class="col-7">
+                                <label for="student_type" class="form-label">Student type</label>
+                                <select id="student_type" name="student_type" class="form-select" aria-describedby="typeHelp">
+                                    @foreach (['Regular', 'Irregular'] as $option)
+                                        <option @selected(old('student_type', $student->student_type) === $option)>{{ $option }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-5">
+                                <label for="block_section" class="form-label">Block section</label>
+                                <input type="text" id="block_section" name="block_section" class="form-control" maxlength="15" value="{{ old('block_section', $student->block_section) }}" placeholder="BSIT-3A">
+                            </div>
+                            <div class="col-12"><div id="typeHelp" class="form-text mt-0">Regular students enroll by block section. Irregular and first-year students line up within the approved slots.</div></div>
                             <div class="col-12">
                                 <label for="contact_no" class="form-label">Contact no.</label>
                                 <input type="text" id="contact_no" name="contact_no" class="form-control" value="{{ old('contact_no', $student->contact_no) }}">

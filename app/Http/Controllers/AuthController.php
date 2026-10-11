@@ -16,18 +16,25 @@ class AuthController extends Controller
 
     public const LOCK_MINUTES = 15;
 
-    /** The sign-in choices on the login page and the roles each one accepts. */
+    /** The sign-in pages, one per portal, and the roles each one accepts. */
     public const PORTALS = [
-        'student' => ['label' => 'Student', 'module' => 'Student Portal', 'field' => 'Student username', 'hint' => 'student', 'icon' => 'graduation', 'roles' => ['Student']],
-        'registrar' => ['label' => 'Registrar', 'module' => 'Registrar Module', 'field' => 'Registrar username', 'hint' => 'registrar', 'icon' => 'file', 'roles' => ['Registrar']],
-        'cashier' => ['label' => 'Cashier', 'module' => 'Cashier Module', 'field' => 'Cashier username', 'hint' => 'cashier', 'icon' => 'wallet', 'roles' => ['Cashier']],
-        'department' => ['label' => 'Department', 'module' => 'Department Module', 'field' => 'Faculty or office username', 'hint' => 'faculty', 'icon' => 'building', 'roles' => ['Faculty', 'Department Head', 'Signatory']],
-        'admin' => ['label' => 'Admin', 'module' => 'Admin Module', 'field' => 'Admin username', 'hint' => 'admin', 'icon' => 'shield', 'roles' => ['Administrator']],
+        'student' => ['label' => 'Student', 'module' => 'Student Portal', 'about' => 'Grades, payments, clearance, and document requests', 'field' => 'Student username', 'hint' => 'student', 'icon' => 'graduation', 'roles' => ['Student']],
+        'registrar' => ['label' => 'Registrar', 'module' => 'Registrar Module', 'about' => 'Student records, terms, and document requests', 'field' => 'Registrar username', 'hint' => 'registrar', 'icon' => 'file', 'roles' => ['Registrar']],
+        'cashier' => ['label' => 'Cashier', 'module' => 'Cashier Module', 'about' => 'Assessments, payments, and collection reports', 'field' => 'Cashier username', 'hint' => 'cashier', 'icon' => 'wallet', 'roles' => ['Cashier']],
+        'department' => ['label' => 'Department', 'module' => 'Department Module', 'about' => 'Faculty, department heads, and clearance offices', 'field' => 'Faculty or office username', 'hint' => 'faculty', 'icon' => 'building', 'roles' => ['Faculty', 'Department Head', 'Signatory']],
+        'admin' => ['label' => 'Admin', 'module' => 'Admin Module', 'about' => 'User accounts, document types, and the audit log', 'field' => 'Admin username', 'hint' => 'admin', 'icon' => 'shield', 'roles' => ['Administrator']],
     ];
 
+    /** The first screen: choose a portal. */
     public function showLogin()
     {
-        return view('auth.login', ['portals' => self::PORTALS]);
+        return view('auth.portals', ['portals' => self::PORTALS]);
+    }
+
+    /** The sign-in form of one portal. */
+    public function showPortal(string $portal)
+    {
+        return view('auth.login', ['key' => $portal, 'portal' => self::PORTALS[$portal]]);
     }
 
     public function login(Request $request)
@@ -64,7 +71,7 @@ class AuthController extends Controller
         // Checked only after the password is correct, so it reveals nothing to a guesser.
         $portal = $data['portal'] ?? null;
         if ($portal && ! $user->hasRole(...self::PORTALS[$portal]['roles'])) {
-            return back()->withErrors(['username' => 'That account does not belong to the '.self::PORTALS[$portal]['module'].'. Choose how you use SSIS above, then sign in again.'])->onlyInput(...$keep);
+            return back()->withErrors(['username' => 'That account does not belong to the '.self::PORTALS[$portal]['module'].'. Go back, choose your own portal, then sign in again.'])->onlyInput(...$keep);
         }
 
         $user->forceFill(['failed_attempts' => 0, 'locked_until' => null, 'last_login' => now()])->save();

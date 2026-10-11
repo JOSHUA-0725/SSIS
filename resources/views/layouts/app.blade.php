@@ -11,15 +11,19 @@
     $role = $user->roleName();
     $student = $role === 'Student' ? $user->student : null;
 
-    // [label, route, icon, badge]
+    // [label, route, icon, badge, route parameters]
+    $accounts = collect(\App\Http\Controllers\AdminController::USER_GROUPS)
+        ->map(fn ($group, $key) => [$group['label'], 'admin.users', $group['icon'], null, ['group' => $key]])->values()->all();
     $menus = [
         'Student' => ['Student Portal', [
-            ['Overview', 'dashboard', 'grid'], ['Clearance', 'student.clearance', 'clipboard'], ['Grades', 'student.grades', 'book-open'],
+            ['Overview', 'dashboard', 'grid'], ['Clearance', 'student.clearance', 'clipboard'], ['Enrollment', 'student.queue', 'list'], ['Grades', 'student.grades', 'book-open'],
             ['Document requests', 'student.requests', 'file'],
             ['Payments', 'student.payments', 'wallet', $student ? \App\Services\LedgerService::payables($student)->where('payable', '>', 0)->count() : 0],
         ]],
         'Registrar' => ['Registrar Module', [
-            ['Overview', 'dashboard', 'grid'], ['Students', 'registrar.students', 'users'], ['Terms and grade release', 'registrar.terms', 'calendar'],
+            ['Overview', 'dashboard', 'grid'], ['Students', 'registrar.students', 'users'],
+            ['Enrollment queue', 'registrar.queue', 'list', \App\Models\QueueTicket::today()->where('status', 'Waiting')->count()], ['Slot requests', 'registrar.slots', 'tag', \App\Models\SlotRequest::where('status', 'Pending')->count()],
+            ['Terms and grade release', 'registrar.terms', 'calendar'],
             ['Document requests', 'registrar.requests', 'file', \App\Models\DocumentRequest::where('status', 'Paid')->count()], ['Clearance', 'clearance.index', 'clipboard'],
         ]],
         'Cashier' => ['Cashier Module', [
@@ -27,13 +31,13 @@
             ['Verify payments', 'cashier.proofs', 'receipt', \App\Models\Payment::where('status', 'For Verification')->count()],
             ['Clearance', 'clearance.index', 'clipboard'], ['Collection report', 'cashier.report', 'chart'],
         ]],
-        'Faculty' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open']]],
+        'Faculty' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open'], ['Enrollment', 'faculty.enrollment', 'list']]],
         'Department Head' => ['Department Module', [
             ['Overview', 'dashboard', 'grid'], ['Grade sheets', 'head.sheets', 'book-open'], ['Clearance', 'clearance.index', 'clipboard'],
         ]],
         'Signatory' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['Clearance', 'clearance.index', 'clipboard']]],
         'Administrator' => ['Admin Module', [
-            ['Overview', 'dashboard', 'grid'], ['Users', 'admin.users', 'users'], ['Document types and fees', 'admin.doctypes', 'tag'], ['Audit log', 'admin.audit', 'list'],
+            ['Overview', 'dashboard', 'grid'], ...$accounts, ['Document types and fees', 'admin.doctypes', 'tag'], ['Audit log', 'admin.audit', 'list'],
         ]],
     ];
     [$module, $menu] = $menus[$role] ?? ['SSIS', []];
@@ -44,6 +48,8 @@
     $initials = $initials->first().($initials->count() > 1 ? $initials->last() : '');
     $sub = $student ? "{$student->program->code} {$student->year_level}" : ($user->office?->name ?? $user->department?->code ?? $role);
     $link = fn (string $name) => request()->routeIs($name.'*') ? 'active' : '';
+    // An entry with route parameters is current only when the address carries the same ones.
+    $current = fn (array $item) => $link($item[1]) && collect($item[4] ?? [])->every(fn ($value, $key) => request()->query($key) === $value) ? 'active' : '';
 @endphp
 
 <header class="topbar d-print-none">
@@ -68,7 +74,7 @@
         <ul class="side-nav" data-live="nav">
             @foreach ($menu as $item)
                 <li>
-                    <a class="{{ $link($item[1]) }}" href="{{ route($item[1]) }}" @if ($link($item[1])) aria-current="page" @endif>
+                    <a class="{{ $current($item) }}" href="{{ route($item[1], $item[4] ?? []) }}" @if ($current($item)) aria-current="page" @endif>
                         @include('partials.icon', ['name' => $item[2]])
                         {{ $item[0] }}
                         @if (! empty($item[3])) <span class="nav-badge">{{ $item[3] }}</span> @endif

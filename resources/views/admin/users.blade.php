@@ -1,13 +1,13 @@
 @extends('layouts.app')
 
-@section('title', 'Users')
+@section('title', $label)
 
 @section('actions')
-    <a href="{{ route('admin.users.create') }}" class="btn btn-primary">Add user</a>
+    <a href="{{ route('admin.users.create', ['group' => $group]) }}" class="btn btn-primary">Add user</a>
 @endsection
 
 @section('content')
-    @include('partials.search', ['placeholder' => 'Search username or name'])
+    @include('partials.search', ['placeholder' => 'Search username or name in '.$label, 'keep' => ['group' => $group]])
 
     <div class="card mb-3">
         <div class="table-responsive">
@@ -35,7 +35,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-secondary">No users found.</td></tr>
+                        <tr><td colspan="6" class="text-secondary">No users found in {{ $label }}.</td></tr>
                     @endforelse
                 </tbody>
             </table>

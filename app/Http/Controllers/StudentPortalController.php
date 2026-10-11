@@ -9,10 +9,13 @@ use App\Models\DocumentType;
 use App\Models\Enrollment;
 use App\Models\Notification;
 use App\Models\Payment;
+use App\Models\QueueTicket;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\ClearanceService;
 use App\Services\DocumentRequestService;
+use App\Services\EnrollmentQueueService;
+use App\Services\EnrollmentService;
 use App\Services\GradeService;
 use App\Services\LedgerService;
 use DomainException;
@@ -213,6 +216,84 @@ class StudentPortalController extends Controller
             'clearance' => $clearance,
             'items' => $this->clearanceItems($clearance),
         ]);
+    }
+
+    // ----- Enrollment queue -----
+
+    public function queue(Request $request)
+    {
+        $student = $this->student($request)->load('program');
+        $term = AcademicTerm::active();
+        $category = EnrollmentService::category($student);
+
+        // Regular students do not line up: they enroll in their block once the department opens enrollment.
+        if ($category === 'Regular') {
+            $sections = $term ? EnrollmentService::blockSections($student, $term) : collect();
+            $taken = Enrollment::where('student_id', $student->id)->whereIn('section_id', $sections->pluck('id'))->count();
+
+            return view('student.enrollment', [
+                'term' => $term,
+                'student' => $student,
+                'sections' => $sections,
+                'open' => $term && EnrollmentService::blockOpen($term->id, $student->program->department_id),
+                'enrolled' => $sections->isNotEmpty() && $taken === $sections->count(),
+            ]);
+        }
+
+        $ticket = EnrollmentQueueService::openTicket($student);
+
+        return view('student.queue', [
+            'term' => $term,
+            'category' => $category,
+            'slots' => $term ? EnrollmentService::remaining($term->id, $student->program->department_id, $category) : 0,
+            'holdsSlot' => $term && EnrollmentService::holdsSlot($student, $term->id),
+            'ticket' => $ticket,
+            'ahead' => $ticket ? EnrollmentQueueService::ahead($ticket) : 0,
+            'serving' => QueueTicket::today()->where('status', 'Serving')->orderBy('number')->get(),
+            'waiting' => QueueTicket::today()->where('status', 'Waiting')->count(),
+            // The last number the student held today, to explain a skipped or finished turn.
+            'last' => $ticket ? null : QueueTicket::today()->where('student_id', $student->id)->latest('id')->first(),
+        ]);
+    }
+
+    public function enrollBlock(Request $request)
+    {
+        $student = $this->student($request);
+
+        try {
+            $added = EnrollmentService::enrollBlock($student);
+        } catch (DomainException $e) {
+            return back()->withErrors(['queue' => $e->getMessage()]);
+        }
+
+        return redirect()->route('student.queue')->with('status', $added
+            ? "You are enrolled in block {$student->block_section}: {$added} ".($added === 1 ? 'subject' : 'subjects').' added.'
+            : "You were already enrolled in every subject of block {$student->block_section}.");
+    }
+
+    public function joinQueue(Request $request)
+    {
+        try {
+            $ticket = EnrollmentQueueService::join($this->student($request));
+        } catch (DomainException $e) {
+            return back()->withErrors(['queue' => $e->getMessage()]);
+        }
+
+        return redirect()->route('student.queue')->with('status', "You are in line. Your queue number is {$ticket->label}.");
+    }
+
+    public function leaveQueue(Request $request)
+    {
+        $ticket = EnrollmentQueueService::openTicket($this->student($request));
+        abort_unless($ticket, 404);
+
+        try {
+            EnrollmentQueueService::leave($ticket);
+        } catch (DomainException $e) {
+            return back()->withErrors(['queue' => $e->getMessage()]);
+        }
+
+        return redirect()->route('student.queue')->with('status', "Queue number {$ticket->label} cancelled.");
     }
 
     // ----- Payments -----

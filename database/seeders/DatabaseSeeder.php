@@ -13,6 +13,7 @@ use App\Models\Grade;
 use App\Models\Office;
 use App\Models\Program;
 use App\Models\Role;
+use App\Models\SlotRequest;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
@@ -101,6 +102,16 @@ class DatabaseSeeder extends Seeder
         $enroll($section($subject('IT 312', 'Information Assurance and Security'), $current), [[1.75, null], [1.50, null]]);
         $enroll($section($subject('IT 313', 'Web Systems and Technologies'), $current));
         $enroll($section($subject('GE 105', 'Ethics'), $current));
+
+        // Juan and Maria are regular students of block BSIT-3A; Jose is irregular and lines up within the approved slots.
+        $juan->update(['block_section' => 'BSIT-3A']);
+        $maria->update(['block_section' => 'BSIT-3A']);
+        $jose->update(['student_type' => 'Irregular']);
+        SlotRequest::create([
+            'term_id' => $current->id, 'department_id' => $ccs->id, 'category' => 'Irregular', 'slots' => 20,
+            'status' => 'Approved', 'requested_by' => $faculty->id, 'decided_by' => $registrar->id, 'decided_at' => now()->subDay(),
+        ]);
+        SlotRequest::create(['term_id' => $current->id, 'department_id' => $ccs->id, 'category' => 'First Year', 'slots' => 40, 'requested_by' => $faculty->id]);
 
         $charges = [];
         foreach ($students as $student) {
