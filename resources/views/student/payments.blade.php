@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Payments')
-@section('lead', 'Pay fees online. Payments are verified by the Cashier and reflected in your clearance automatically.')
+@section('lead', 'Pay fees online or in cash at the Cashier. Payments are reflected in your balance and clearance automatically.')
 
 @section('content')
     <section class="panel mb-4" aria-label="Outstanding balance">
@@ -33,13 +33,21 @@
                         <fieldset>
                             <legend class="form-label">Pay with</legend>
                             @foreach ($methods as $index => $method)
+                                @php $name = $method === 'Online Banking' ? 'online banking' : $method; @endphp
                                 <label class="choice">
-                                    <input type="radio" name="method" value="{{ $method }}" @checked($index === 0) required>
-                                    <span class="box"><span class="radio"></span><span class="name">{{ $method === 'Online Banking' ? 'Online banking' : $method }}</span></span>
+                                    <input type="radio" name="method" value="{{ $method }}" @checked($index === 0) required data-action="Pay ₱{{ number_format($payable, 2) }} with {{ $name }}">
+                                    <span class="box"><span class="radio"></span><span class="name">{{ ucfirst($name) }}</span></span>
                                 </label>
                             @endforeach
+                            <label class="choice">
+                                <input type="radio" name="method" value="Cash" required data-action="Get a cash payment slip">
+                                <span class="box">
+                                    <span class="radio"></span>
+                                    <span class="text"><span class="name d-block">Cash</span><span class="sub">Pay at the Cashier window on campus</span></span>
+                                </span>
+                            </label>
                         </fieldset>
-                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-2" data-pay-button data-amount="₱{{ number_format($payable, 2) }}">Pay ₱{{ number_format($payable, 2) }}</button>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-2" data-pay-button>Pay ₱{{ number_format($payable, 2) }}</button>
                     </form>
                 @elseif ($pending > 0)
                     <div class="stat-label mb-2">Nothing more to pay right now</div>

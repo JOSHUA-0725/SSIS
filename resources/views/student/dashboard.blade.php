@@ -94,6 +94,28 @@
         @endforelse
     </section>
 
+    <section class="panel mt-4" aria-labelledby="subjects-title">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+            <h2 class="panel-title" id="subjects-title">Subjects this term</h2>
+            <span class="muted small">{{ $subjects->count() }} {{ Str::plural('subject', $subjects->count()) }} · {{ $subjects->sum('section.subject.units') }} units</span>
+        </div>
+        @if ($subjects->isEmpty())
+            <p class="muted mb-0 mt-2">You are not enrolled in any subject yet. Subjects appear here as soon as the Registrar adds them.</p>
+        @else
+            <ul class="rows">
+                @foreach ($subjects as $enrollment)
+                    <li>
+                        <div>
+                            <div class="fw-medium"><span class="mono me-2">{{ $enrollment->section->subject->code }}</span>{{ $enrollment->section->subject->title }}</div>
+                            <div class="sub">{{ $enrollment->section->faculty->name }} · {{ $enrollment->section->section_code }}</div>
+                        </div>
+                        <span class="muted text-nowrap">{{ $enrollment->section->subject->units }} units</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </section>
+
     @if ($notifications->isNotEmpty())
         <section class="panel mt-4" aria-labelledby="updates-title">
             <div class="d-flex justify-content-between align-items-center mb-1">

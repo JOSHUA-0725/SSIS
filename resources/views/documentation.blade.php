@@ -7,6 +7,10 @@
 <main class="guest">
     <div class="guest-box wide">
         <p><a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="link-arrow">@include('partials.icon', ['name' => 'arrow-left']) Back</a></p>
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <img class="brand-logo" src="{{ asset('images/pnc-logo.png') }}" alt="Pamantasan ng Cabuyao seal" width="40" height="40">
+            <span class="muted">Pamantasan ng Cabuyao · Student Services Information System</span>
+        </div>
         <h1>System documentation</h1>
         <p class="muted mb-4">The Student Services Information System (SSIS) replaces the physical queues for enrollment clearance, grade viewing, and document requests. This page summarises how it was planned, designed, and tested.</p>
 
