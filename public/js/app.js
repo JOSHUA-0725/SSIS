@@ -93,22 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
         reflect();
     }
 
-    // ----- Sign-in page: the chosen module sets the field label, the example and the button text -----
-    const portal = document.querySelector('select[name="portal"]');
-    if (portal) {
-        const label = document.querySelector('[data-portal-label]');
-        const input = document.querySelector('#username');
-        const button = document.querySelector('[data-portal-button]');
-        const apply = () => {
-            const chosen = portal.selectedOptions[0];
-            label.textContent = chosen.dataset.field;
-            input.placeholder = chosen.dataset.hint;
-            button.textContent = 'Sign in to ' + chosen.dataset.module;
-        };
-        portal.addEventListener('change', apply);
-        apply();
-    }
-
     startLiveUpdates();
 });
 

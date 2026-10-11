@@ -14,17 +14,35 @@ use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
+    /** The account lists in the Admin menu, one per module, and the role each one shows. */
+    public const USER_GROUPS = [
+        'students' => ['label' => 'Students', 'role' => 'Student', 'icon' => 'graduation'],
+        'cashier' => ['label' => 'Cashier', 'role' => 'Cashier', 'icon' => 'wallet'],
+        'registrar' => ['label' => 'Registrar', 'role' => 'Registrar', 'icon' => 'file'],
+        'faculty' => ['label' => 'Faculty', 'role' => 'Faculty', 'icon' => 'book-open'],
+    ];
+
     public function users(Request $request)
     {
         $q = trim((string) $request->query('q'));
+        $group = array_key_exists($request->query('group'), self::USER_GROUPS) ? $request->query('group') : 'students';
 
         $users = User::with('role')
+            ->whereHas('role', fn ($role) => $role->where('name', self::USER_GROUPS[$group]['role']))
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('username', 'like', "%{$q}%")
                 ->orWhere('name', 'like', "%{$q}%")))
-            ->orderBy('role_id')->orderBy('username')->paginate(15)->withQueryString();
+            ->orderBy('username')->paginate(15)->withQueryString();
 
-        return view('admin.users', compact('users', 'q'));
+        return view('admin.users', ['users' => $users, 'q' => $q, 'group' => $group, 'label' => self::USER_GROUPS[$group]['label']]);
+    }
+
+    /** The list that shows this account, so a redirect lands where the change can be seen. */
+    public static function usersTab(User $user): array
+    {
+        $group = collect(self::USER_GROUPS)->search(fn ($g) => $g['role'] === $user->role()->value('name'));
+
+        return $group ? ['group' => $group] : [];
     }
 
     private function formData(): array
@@ -63,7 +81,7 @@ class AdminController extends Controller
         $user = User::create($data + ['password' => $password]);
         AuditLog::record('CREATE', 'users', $user->id, null, ['username' => $user->username, 'role_id' => $user->role_id]);
 
-        return redirect()->route('admin.users')
+        return redirect()->route('admin.users', $this->usersTab($user))
             ->with('status', "User {$user->username} created. Temporary password: {$password} (shown once).");
     }
 
@@ -89,7 +107,7 @@ class AdminController extends Controller
         $user->update($data);
         AuditLog::record('UPDATE', 'users', $user->id, $old, $data);
 
-        return redirect()->route('admin.users')->with('status', "User {$user->username} updated.");
+        return redirect()->route('admin.users', $this->usersTab($user))->with('status', "User {$user->username} updated.");
     }
 
     public function resetPassword(User $user)

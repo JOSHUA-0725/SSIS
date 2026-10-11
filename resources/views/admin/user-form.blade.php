@@ -74,7 +74,7 @@
                 @endunless
 
                 <div class="d-flex gap-2 mt-3">
-                    <a href="{{ route('admin.users') }}" class="btn btn-outline-secondary">Cancel</a>
+                    <a href="{{ route('admin.users', $user->exists ? \App\Http\Controllers\AdminController::usersTab($user) : request()->only('group')) }}" class="btn btn-outline-secondary">Cancel</a>
                     <button type="submit" class="btn btn-primary">{{ $user->exists ? 'Save changes' : 'Create user' }}</button>
                 </div>
             </form>

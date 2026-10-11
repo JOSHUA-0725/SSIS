@@ -9,11 +9,15 @@ use App\Models\DocumentRequest;
 use App\Models\Enrollment;
 use App\Models\Notification;
 use App\Models\Program;
+use App\Models\QueueTicket;
 use App\Models\Role;
+use App\Models\SlotRequest;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\ClearanceService;
 use App\Services\DocumentRequestService;
+use App\Services\EnrollmentQueueService;
+use App\Services\EnrollmentService;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +102,8 @@ class RegistrarController extends Controller
         $data = $request->validate([
             'status' => ['required', Rule::in(['Enrolled', 'Not Enrolled', 'LOA', 'Graduated', 'Dropped'])],
             'year_level' => ['required', 'integer', 'between:1,5'],
+            'student_type' => ['sometimes', 'required', Rule::in(['Regular', 'Irregular'])],
+            'block_section' => ['sometimes', 'nullable', 'string', 'max:15', 'regex:/^[A-Za-z0-9 \-]+$/'],
             'contact_no' => ['nullable', 'string', 'max:15'],
             'address' => ['nullable', 'string', 'max:255'],
         ]);
@@ -174,6 +180,72 @@ class RegistrarController extends Controller
         AuditLog::record('UPDATE', 'academic_terms', $term->id, $old, $term->only(array_keys($old)));
 
         return back()->with('status', 'Term updated.');
+    }
+
+    // ----- Enrollment slots asked for by the departments -----
+
+    public function slotRequests()
+    {
+        return view('registrar.slot-requests', [
+            // Pending requests first, then the newest decisions.
+            'requests' => SlotRequest::with(['department', 'term', 'requester', 'decider'])
+                ->orderByRaw("status = 'Pending' desc")->latest('id')->paginate(15),
+        ]);
+    }
+
+    public function decideSlotRequest(Request $request, SlotRequest $slotRequest)
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['Approved', 'Rejected'])],
+            'remarks' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        try {
+            EnrollmentService::decide($slotRequest, $data['status'], $data['remarks'] ?? null, $request->user());
+        } catch (DomainException $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
+        }
+
+        return back()->with('status', "{$slotRequest->slots} {$slotRequest->category} slots for {$slotRequest->department->code} ".strtolower($data['status']).'.');
+    }
+
+    // ----- Enrollment queue -----
+
+    public function queue(Request $request)
+    {
+        $today = QueueTicket::today()->with(['student.program', 'server'])->orderBy('number')->get();
+
+        return view('registrar.queue', [
+            'mine' => $today->first(fn ($t) => $t->status === 'Serving' && $t->served_by === $request->user()->id),
+            'others' => $today->filter(fn ($t) => $t->status === 'Serving' && $t->served_by !== $request->user()->id),
+            'waiting' => $today->where('status', 'Waiting'),
+            'closed' => $today->whereIn('status', ['Done', 'Skipped', 'Cancelled'])->sortByDesc('finished_at'),
+        ]);
+    }
+
+    public function callNext(Request $request)
+    {
+        try {
+            $ticket = EnrollmentQueueService::callNext($request->user());
+        } catch (DomainException $e) {
+            return back()->withErrors(['queue' => $e->getMessage()]);
+        }
+
+        return back()->with('status', "Now serving {$ticket->label}: {$ticket->student->full_name}.");
+    }
+
+    public function closeTicket(Request $request, QueueTicket $ticket)
+    {
+        $data = $request->validate(['status' => ['required', Rule::in(['Done', 'Skipped'])]]);
+        abort_unless($ticket->served_by === $request->user()->id, 403);
+
+        try {
+            EnrollmentQueueService::finish($ticket, $data['status'], $request->user());
+        } catch (DomainException $e) {
+            return back()->withErrors(['queue' => $e->getMessage()]);
+        }
+
+        return back()->with('status', "{$ticket->label} marked ".strtolower($data['status']).'.');
     }
 
     public function requests(Request $request)

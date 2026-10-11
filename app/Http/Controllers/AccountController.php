@@ -10,6 +10,7 @@ use App\Models\ClearanceItem;
 use App\Models\DocumentRequest;
 use App\Models\Notification;
 use App\Models\Payment;
+use App\Models\QueueTicket;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -62,6 +63,7 @@ class AccountController extends Controller
             'Registrar' => [
                 ['Requests to process', DocumentRequest::where('status', 'Paid')->count(), route('registrar.requests', ['status' => 'Paid'])],
                 ['Ready for pickup', DocumentRequest::where('status', 'Ready for Pickup')->count(), route('registrar.requests', ['status' => 'Ready for Pickup'])],
+                ['Waiting in the enrollment queue', QueueTicket::today()->where('status', 'Waiting')->count(), route('registrar.queue')],
                 ['Enrolled students', Student::where('status', 'Enrolled')->count(), route('registrar.students')],
                 ['Cleared this term', Clearance::where('term_id', $termId)->where('overall_status', 'Cleared')->count(), route('clearance.index')],
             ],

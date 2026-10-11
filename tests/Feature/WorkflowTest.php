@@ -295,6 +295,24 @@ class WorkflowTest extends SsisTestCase
         $this->assertSame('Active', $admin->fresh()->status);
     }
 
+    public function test_admin_menu_lists_each_kind_of_account_on_its_own_page(): void
+    {
+        $admin = $this->makeUser('Administrator');
+        $cashier = $this->makeUser('Cashier');
+        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $student = $this->makeStudent();
+
+        $this->actingAs($admin)->get('/admin/users?group=students')->assertOk()
+            ->assertSee($student->user->username)->assertDontSee($cashier->username)->assertDontSee($faculty->username);
+        $this->get('/admin/users?group=cashier')->assertOk()
+            ->assertSee($cashier->username)->assertDontSee($faculty->username)->assertDontSee($student->user->username);
+        $this->get('/admin/users?group=faculty')->assertOk()
+            ->assertSee($faculty->username)->assertDontSee($cashier->username);
+        foreach (['students', 'cashier', 'registrar', 'faculty'] as $group) {
+            $this->get('/admin/users')->assertSee(route('admin.users', ['group' => $group]));
+        }
+    }
+
     public function test_every_role_can_open_its_own_pages(): void
     {
         $student = $this->makeStudent();

@@ -2,14 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\AuthController;
 use App\Models\Assessment;
 use App\Models\ClearanceItem;
 use App\Models\DocumentType;
+use App\Models\Enrollment;
 use App\Models\Notification;
 use App\Models\Office;
 use App\Models\Payment;
+use App\Models\QueueTicket;
+use App\Models\SlotRequest;
+use App\Models\Student;
 use App\Services\ClearanceService;
 use App\Services\DocumentRequestService;
+use App\Services\EnrollmentQueueService;
 use App\Services\LedgerService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -56,9 +62,158 @@ class PortalFeaturesTest extends SsisTestCase
 
     public function test_public_pages_open_without_signing_in(): void
     {
-        $this->get('/login')->assertOk()->assertSee('I am signing in as')->assertSee('Pamantasan ng Cabuyao')->assertSee('System documentation');
+        $this->get('/login')->assertOk()->assertSee('Choose your portal')->assertSee('Pamantasan ng Cabuyao');
+        foreach (AuthController::PORTALS as $key => $portal) {
+            $this->get('/login')->assertSee(route('login.portal', $key));
+            $this->get("/login/{$key}")->assertOk()->assertSee($portal['module'])->assertSee($portal['field']);
+        }
+        $this->get('/login/nobody')->assertNotFound();
         $this->get('/forgot-password')->assertOk();
         $this->get('/documentation')->assertOk()->assertSee('SDLC plan');
+    }
+
+    // ----- Enrollment queue -----
+
+    /** An irregular student, who enrolls through the queue. */
+    private function makeIrregular(): Student
+    {
+        $student = $this->makeStudent();
+        $student->update(['student_type' => 'Irregular']);
+
+        return $student;
+    }
+
+    /** Slots already approved for the CCS department this term. */
+    private function approveSlots(string $category, int $slots): void
+    {
+        SlotRequest::create([
+            'term_id' => $this->term->id, 'department_id' => $this->ccs(), 'category' => $category, 'slots' => $slots,
+            'status' => 'Approved', 'requested_by' => $this->makeUser('Faculty', ['department_id' => $this->ccs()])->id,
+        ]);
+    }
+
+    public function test_students_line_up_and_the_registrar_calls_them_in_order(): void
+    {
+        $first = $this->makeIrregular();
+        $second = $this->makeIrregular();
+        $registrar = $this->makeUser('Registrar');
+        $this->approveSlots('Irregular', 2);
+
+        $this->actingAs($first->user)->get('/student/queue')->assertOk()->assertSee('Get a queue number');
+        $this->actingAs($first->user)->post('/student/queue')->assertRedirect('/student/queue')->assertSessionHas('status');
+        $this->actingAs($second->user)->post('/student/queue')->assertRedirect('/student/queue');
+
+        // One number at a time.
+        $this->actingAs($first->user)->post('/student/queue')->assertSessionHasErrors('queue');
+        $this->assertSame(2, QueueTicket::count());
+        $this->actingAs($second->user)->get('/student/queue')->assertOk()->assertSee('E-002')->assertSee('1 student is ahead of you');
+
+        $this->actingAs($registrar)->get('/registrar/queue')->assertOk()->assertSee('E-001')->assertSee('E-002');
+        $this->actingAs($registrar)->post('/registrar/queue/next')->assertSessionHasNoErrors();
+        $this->assertSame('Serving', EnrollmentQueueService::openTicket($first)->status);
+        $this->assertDatabaseHas('notifications', ['user_id' => $first->user_id, 'title' => 'It is your turn']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $second->user_id, 'title' => 'You are next in line']);
+        $this->actingAs($first->user)->get('/student/queue')->assertOk()->assertSee('It is your turn');
+
+        // A number that is being served can no longer be cancelled by the student.
+        $this->actingAs($first->user)->post('/student/queue/leave')->assertSessionHasErrors('queue');
+
+        // Calling the next number closes the one at the window.
+        $this->actingAs($registrar)->post('/registrar/queue/next')->assertSessionHasNoErrors();
+        $this->assertNull(EnrollmentQueueService::openTicket($first));
+        $this->assertSame('Done', QueueTicket::where('student_id', $first->id)->value('status'));
+
+        $ticket = EnrollmentQueueService::openTicket($second);
+        $this->actingAs($registrar)->put("/registrar/queue/{$ticket->id}", ['status' => 'Skipped'])->assertSessionHasNoErrors();
+        $this->assertSame('Skipped', $ticket->fresh()->status);
+        $this->actingAs($registrar)->post('/registrar/queue/next')->assertSessionHasErrors('queue');
+
+        // A skipped student may line up again and gets the next number.
+        $this->actingAs($second->user)->post('/student/queue')->assertRedirect('/student/queue');
+        $this->assertSame(3, EnrollmentQueueService::openTicket($second)->number);
+    }
+
+    public function test_student_can_cancel_a_waiting_number_and_staff_pages_stay_closed(): void
+    {
+        $student = $this->makeIrregular();
+        $this->approveSlots('Irregular', 1);
+
+        $this->actingAs($student->user)->post('/student/queue');
+        $this->actingAs($student->user)->post('/student/queue/leave')->assertRedirect('/student/queue');
+        $this->assertSame('Cancelled', QueueTicket::first()->status);
+        $this->actingAs($student->user)->post('/student/queue/leave')->assertNotFound();
+
+        $this->actingAs($student->user)->get('/registrar/queue')->assertForbidden();
+        $this->actingAs($student->user)->post('/registrar/queue/next')->assertForbidden();
+        $this->actingAs($this->makeUser('Cashier'))->get('/student/queue')->assertForbidden();
+    }
+
+    public function test_faculty_asks_for_slots_and_the_registrar_approval_limits_the_queue(): void
+    {
+        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $registrar = $this->makeUser('Registrar');
+        $freshmen = [$this->makeStudent(), $this->makeStudent()];
+        foreach ($freshmen as $student) {
+            $student->update(['year_level' => 1]);
+        }
+
+        // Nothing is approved yet, so no first-year student can line up.
+        $this->actingAs($freshmen[0]->user)->post('/student/queue')->assertSessionHasErrors('queue');
+
+        $this->actingAs($faculty)->get('/faculty/enrollment')->assertOk()->assertSee('Ask the Registrar for slots');
+        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'First Year', 'slots' => 1])->assertSessionHasNoErrors();
+        // One request per kind of student waits at a time.
+        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'First Year', 'slots' => 5])->assertSessionHasErrors('slots');
+        $slotRequest = SlotRequest::sole();
+        $this->assertDatabaseHas('notifications', ['user_id' => $registrar->id, 'title' => 'Enrollment slots requested']);
+
+        // A pending request opens no slots.
+        $this->actingAs($freshmen[0]->user)->post('/student/queue')->assertSessionHasErrors('queue');
+
+        $this->actingAs($registrar)->get('/registrar/slot-requests')->assertOk()->assertSee('First Year');
+        $this->actingAs($registrar)->put("/registrar/slot-requests/{$slotRequest->id}", ['status' => 'Approved'])->assertSessionHasNoErrors();
+        $this->assertSame('Approved', $slotRequest->fresh()->status);
+        $this->assertDatabaseHas('notifications', ['user_id' => $faculty->id, 'title' => 'Slot request Approved']);
+        $this->actingAs($registrar)->put("/registrar/slot-requests/{$slotRequest->id}", ['status' => 'Rejected'])->assertSessionHasErrors('status');
+
+        // One slot: the first student gets it, the second is turned away.
+        $this->actingAs($freshmen[0]->user)->post('/student/queue')->assertRedirect('/student/queue');
+        $this->actingAs($freshmen[1]->user)->post('/student/queue')->assertSessionHasErrors('queue');
+        $this->assertSame(1, QueueTicket::count());
+
+        $this->actingAs($freshmen[0]->user)->get('/faculty/enrollment')->assertForbidden();
+        $this->actingAs($faculty)->get('/registrar/slot-requests')->assertForbidden();
+    }
+
+    public function test_regular_students_enroll_by_block_once_the_faculty_opens_enrollment(): void
+    {
+        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $student = $this->makeStudent();
+        $student->update(['block_section' => 'BSIT-3A']);
+        $this->makeSection($faculty);
+        $this->makeSection($faculty);
+
+        // Regular students do not use the queue.
+        $this->actingAs($student->user)->post('/student/queue')->assertSessionHasErrors('queue');
+
+        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('has not opened enrollment yet');
+        $this->actingAs($student->user)->post('/student/enroll')->assertSessionHasErrors('queue');
+        $this->assertSame(0, Enrollment::count());
+
+        $this->actingAs($faculty)->put('/faculty/enrollment/block', ['open' => 1])->assertSessionHasNoErrors();
+        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('Enroll in my block');
+        $this->actingAs($student->user)->post('/student/enroll')->assertRedirect('/student/queue')->assertSessionHas('status');
+        $this->assertSame(2, Enrollment::where('student_id', $student->id)->count());
+        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('You are enrolled in every subject of your block');
+
+        // Closing enrollment stops the next regular student; an irregular one never enrolls by block.
+        $this->actingAs($faculty)->put('/faculty/enrollment/block', ['open' => 0])->assertSessionHasNoErrors();
+        $late = $this->makeStudent();
+        $late->update(['block_section' => 'BSIT-3A']);
+        $this->actingAs($late->user)->post('/student/enroll')->assertSessionHasErrors('queue');
+        $this->actingAs($faculty)->put('/faculty/enrollment/block', ['open' => 1]);
+        $this->actingAs($this->makeIrregular()->user)->post('/student/enroll')->assertSessionHasErrors('queue');
+        $this->assertSame(2, Enrollment::count());
     }
 
     // ----- Online payment -----
@@ -249,6 +404,6 @@ class PortalFeaturesTest extends SsisTestCase
 
     public function test_forgot_password_link_is_on_the_sign_in_page(): void
     {
-        $this->get('/login')->assertOk()->assertSee('Forgot password?')->assertSee(route('password.request'));
+        $this->get('/login/student')->assertOk()->assertSee('Forgot password?')->assertSee(route('password.request'));
     }
 }
