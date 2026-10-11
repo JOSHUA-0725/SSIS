@@ -122,6 +122,8 @@ class StudentPortalController extends Controller
             'requests' => $student->documentRequests()->with('type')
                 ->whereNotIn('status', ['Released', 'Rejected', 'Cancelled'])->latest('id')->get(),
             'steps' => self::STEPS,
+            'subjects' => $term ? Enrollment::with(['section.subject', 'section.faculty'])->where('student_id', $student->id)
+                ->whereHas('section', fn ($q) => $q->where('term_id', $term->id))->get()->sortBy('section.subject.code')->values() : collect(),
             'notifications' => Notification::where('user_id', $student->user_id)->latest()->limit(4)->get(),
         ]);
     }
@@ -235,14 +237,15 @@ class StudentPortalController extends Controller
     public function checkout(Request $request)
     {
         $student = $this->student($request);
-        $data = $request->validate(['method' => ['required', Rule::in(array_keys(LedgerService::ONLINE_METHODS))]]);
+        $data = $request->validate(['method' => ['required', Rule::in([...array_keys(LedgerService::ONLINE_METHODS), 'Cash'])]]);
         $payables = LedgerService::payables($student)->where('payable', '>', 0);
 
         if ($payables->isEmpty()) {
             return redirect()->route('student.payments')->withErrors(['method' => 'You have nothing left to pay.']);
         }
 
-        return view('student.checkout', [
+        return view($data['method'] === 'Cash' ? 'student.cash-slip' : 'student.checkout', [
+            'student' => $student->load('program'),
             'method' => $data['method'],
             'payables' => $payables,
             'total' => $payables->sum('payable'),

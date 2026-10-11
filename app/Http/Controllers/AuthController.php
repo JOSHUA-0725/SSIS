@@ -18,7 +18,7 @@ class AuthController extends Controller
 
     /** The sign-in choices on the login page and the roles each one accepts. */
     public const PORTALS = [
-        'student' => ['label' => 'Student', 'module' => 'Student Portal', 'field' => 'Student number', 'hint' => '2026-00123', 'icon' => 'graduation', 'roles' => ['Student']],
+        'student' => ['label' => 'Student', 'module' => 'Student Portal', 'field' => 'Student username', 'hint' => 'student', 'icon' => 'graduation', 'roles' => ['Student']],
         'registrar' => ['label' => 'Registrar', 'module' => 'Registrar Module', 'field' => 'Registrar username', 'hint' => 'registrar', 'icon' => 'file', 'roles' => ['Registrar']],
         'cashier' => ['label' => 'Cashier', 'module' => 'Cashier Module', 'field' => 'Cashier username', 'hint' => 'cashier', 'icon' => 'wallet', 'roles' => ['Cashier']],
         'department' => ['label' => 'Department', 'module' => 'Department Module', 'field' => 'Faculty or office username', 'hint' => 'faculty', 'icon' => 'building', 'roles' => ['Faculty', 'Department Head', 'Signatory']],

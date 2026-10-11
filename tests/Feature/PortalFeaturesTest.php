@@ -56,7 +56,7 @@ class PortalFeaturesTest extends SsisTestCase
 
     public function test_public_pages_open_without_signing_in(): void
     {
-        $this->get('/login')->assertOk()->assertSee('I am signing in as')->assertSee('System documentation');
+        $this->get('/login')->assertOk()->assertSee('I am signing in as')->assertSee('Pamantasan ng Cabuyao')->assertSee('System documentation');
         $this->get('/forgot-password')->assertOk();
         $this->get('/documentation')->assertOk()->assertSee('SDLC plan');
     }
@@ -190,5 +190,65 @@ class PortalFeaturesTest extends SsisTestCase
         ClearanceService::sign($library, 'On Hold', 'Unreturned book', $this->signatory('LIB'));
 
         $this->actingAs($student->user)->get('/dashboard')->assertOk()->assertSee('Settle your deficiency at the Library.');
+    }
+
+    // ----- Top bar, cash, live updates -----
+
+    public function test_top_bar_shows_the_university_and_the_student_id(): void
+    {
+        $student = $this->makeStudent();
+
+        $this->actingAs($student->user)->get('/dashboard')->assertOk()
+            ->assertSee('Pamantasan ng Cabuyao')->assertSee('Student ID')->assertSee($student->student_no);
+        $this->actingAs($this->makeUser('Cashier'))->get('/dashboard')->assertOk()->assertSee('User ID');
+    }
+
+    public function test_student_can_get_a_cash_payment_slip_but_cash_is_posted_only_by_the_cashier(): void
+    {
+        $student = $this->makeStudent();
+        $charge = Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 800]);
+
+        $this->actingAs($student->user)->get('/student/payments')->assertOk()->assertSee('Pay at the Cashier window on campus');
+        $this->actingAs($student->user)->get('/student/payments/checkout?method=Cash')->assertOk()
+            ->assertSee('Cash Payment Slip')->assertSee($student->student_no)->assertSee('800.00');
+
+        // The slip records nothing; the balance changes when the Cashier posts the cash.
+        $this->assertSame(0, Payment::count());
+        $this->actingAs($this->makeUser('Cashier'))->post("/cashier/students/{$student->id}/payments", [
+            'assessment_id' => $charge->id, 'amount' => 800, 'or_number' => 'OR-7001', 'method' => 'Cash',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(0.00, LedgerService::balance($student));
+    }
+
+    public function test_live_signature_changes_when_a_payment_or_a_subject_is_added(): void
+    {
+        $student = $this->makeStudent();
+        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $section = $this->makeSection($faculty);
+        $charge = Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 800]);
+        $signature = fn () => $this->actingAs($student->user)->getJson('/live')->assertOk()->json('signature');
+
+        $start = $signature();
+        $this->assertSame($start, $signature(), 'Nothing changed, so the signature is stable.');
+
+        // Registrar adds a subject: the student sees it on the overview straight away.
+        $this->actingAs($this->makeUser('Registrar'))->post("/registrar/students/{$student->id}/enroll", ['section_id' => $section->id])->assertSessionHasNoErrors();
+        $afterSubject = $signature();
+        $this->assertNotSame($start, $afterSubject);
+        $this->actingAs($student->user)->get('/dashboard')->assertSee('Subjects this term')->assertSee($section->subject->title);
+
+        // Cashier posts a payment.
+        LedgerService::postPayment($charge, 300, 'OR-7002', 'Cash', $this->makeUser('Cashier'));
+        $this->assertNotSame($afterSubject, $signature());
+    }
+
+    public function test_live_signature_needs_a_signed_in_user(): void
+    {
+        $this->getJson('/live')->assertUnauthorized();
+    }
+
+    public function test_forgot_password_link_is_on_the_sign_in_page(): void
+    {
+        $this->get('/login')->assertOk()->assertSee('Forgot password?')->assertSee(route('password.request'));
     }
 }

@@ -35,6 +35,24 @@ class AccountController extends Controller
         ]);
     }
 
+    /**
+     * A short fingerprint of the data this user can see. Open pages poll it every few seconds
+     * and refresh themselves when it changes, so a payment or a new subject shows up at once.
+     */
+    public function live(Request $request)
+    {
+        $userId = $request->user()->id;
+        $quiet = ['LOGIN', 'LOGOUT', 'LOGIN_FAILED', 'LOGIN_LOCKED', 'ACCESS_DENIED', 'EXPORT', 'PASSWORD_CHANGE', 'PASSWORD_RESET_REQUEST'];
+
+        return response()->json(['signature' => md5(implode('|', [
+            // Every change to a record writes an audit entry, so its newest id moves with any change.
+            AuditLog::whereNotIn('action', $quiet)->max('id'),
+            Payment::count(), Payment::max('updated_at'),
+            Notification::where('user_id', $userId)->max('id'),
+            Notification::where('user_id', $userId)->where('is_read', false)->count(),
+        ]))])->header('Cache-Control', 'no-store');
+    }
+
     /** Status cards for each staff role: [label, value, route]. */
     private function staffCards(User $user, ?AcademicTerm $term): array
     {

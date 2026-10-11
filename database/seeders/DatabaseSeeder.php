@@ -51,13 +51,13 @@ class DatabaseSeeder extends Seeder
         $sao = $staff('sao', 'Teresa Navarro', 'Signatory', ['office_id' => $office['SAO']]);
 
         $students = collect([
-            ['2026-00123', 'Dela Cruz', 'Juan', 'Santos', 'M'],
-            ['2026-00124', 'Santos', 'Maria', 'Lopez', 'F'],
-            ['2026-00125', 'Reyes', 'Jose', 'Bautista', 'M'],
+            ['student', '2026-00123', 'Dela Cruz', 'Juan', 'Santos', 'M'],
+            ['student2', '2026-00124', 'Santos', 'Maria', 'Lopez', 'F'],
+            ['student3', '2026-00125', 'Reyes', 'Jose', 'Bautista', 'M'],
         ])->map(function ($row) use ($role, $bsit) {
-            [$no, $last, $first, $middle, $sex] = $row;
+            [$username, $no, $last, $first, $middle, $sex] = $row;
             $user = User::create([
-                'username' => $no, 'name' => "{$first} {$last}", 'role_id' => $role['Student'],
+                'username' => $username, 'name' => "{$first} {$last}", 'role_id' => $role['Student'],
                 'email' => "{$no}@student.college.test", 'password' => self::DEMO_PASSWORD,
             ]);
 

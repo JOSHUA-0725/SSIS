@@ -42,15 +42,15 @@ After pulling new code, run `C:\xampp\php\php.exe artisan migrate` once so the d
 
 Every demo account uses the password `Password123`. On the sign-in page, choose the tile that matches the account: Student, Registrar, Cashier, Department (faculty, department heads, and clearance offices), or Admin.
 
-To see the whole flow: sign in as `2026-00123`, file a document request, pay it on the Payments page, sign in as `cashier` and confirm it under Verify payments, then sign in as `registrar` and process it under Document requests.
+To see the whole flow: sign in as `student`, file a document request, pay it on the Payments page, sign in as `cashier` and confirm it under Verify payments, then sign in as `registrar` and process it under Document requests.
 
 Online payments (GCash, Maya, online banking) run on a demo channel: no merchant account is connected, so no real money moves. A payment is recorded with a reference number and waits for the Cashier to confirm it.
 
 | Username | Role | What to try |
 | --- | --- | --- |
-| `2026-00123` | Student | Balance of ₱5,500, Cashier clearance pending, one unpaid Transcript request |
-| `2026-00124` | Student | Fully paid, waiting only for the Registrar's final clearance |
-| `2026-00125` | Student | On hold at the Library |
+| `student` | Student (2026-00123) | Balance of ₱5,500, Cashier clearance pending, one unpaid Transcript request |
+| `student2` | Student (2026-00124) | Fully paid, waiting only for the Registrar's final clearance |
+| `student3` | Student (2026-00125) | On hold at the Library |
 | `registrar` | Registrar | Process the paid request, release grades, give final clearance |
 | `cashier` | Cashier | Post a payment, verify proofs, print the collection report |
 | `faculty` | Faculty | Encode and submit a grade sheet |

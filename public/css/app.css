@@ -6,9 +6,9 @@
     --ink: #1c1b18;
     --muted: #6a6862;
     --line: #e3e0d8;
-    --green: #1f4d3a;
-    --green-dark: #163a2b;
-    --green-tint: #e4ede7;
+    --green: #009040;
+    --green-dark: #00702f;
+    --green-tint: #e0f2e7;
     --amber: #9a5b0a;
     --amber-tint: #fbefd8;
     --red: #a5332b;
@@ -25,8 +25,8 @@
     --bs-body-font-size: 0.925rem;
     --bs-border-color: var(--line);
     --bs-secondary-color: var(--muted);
-    --bs-link-color-rgb: 31, 77, 58;
-    --bs-link-hover-color-rgb: 22, 58, 43;
+    --bs-link-color-rgb: 0, 112, 47;
+    --bs-link-hover-color-rgb: 0, 88, 37;
     --bs-tertiary-bg: #f8f6f2;
 }
 
@@ -431,10 +431,10 @@ a.card:hover {
     --bs-btn-hover-border-color: var(--green-dark);
     --bs-btn-active-bg: var(--green-dark);
     --bs-btn-active-border-color: var(--green-dark);
-    --bs-btn-disabled-bg: #9db3a8;
-    --bs-btn-disabled-border-color: #9db3a8;
+    --bs-btn-disabled-bg: #8fcfaa;
+    --bs-btn-disabled-border-color: #8fcfaa;
     --bs-btn-disabled-opacity: 1;
-    --bs-btn-focus-shadow-rgb: 31, 77, 58;
+    --bs-btn-focus-shadow-rgb: 0, 144, 64;
 }
 
 .btn-outline-primary, .btn-outline-secondary {
@@ -449,7 +449,7 @@ a.card:hover {
     --bs-btn-active-border-color: var(--green);
     --bs-btn-disabled-color: var(--muted);
     --bs-btn-disabled-border-color: var(--line);
-    --bs-btn-focus-shadow-rgb: 31, 77, 58;
+    --bs-btn-focus-shadow-rgb: 0, 144, 64;
 }
 
 .btn-danger {
@@ -496,7 +496,7 @@ a.card:hover {
 
 .form-control:focus, .form-select:focus {
     border-color: var(--green);
-    box-shadow: 0 0 0 3px rgba(31, 77, 58, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 144, 64, 0.15);
 }
 
 .form-control:disabled, .form-control[readonly] {
@@ -582,7 +582,7 @@ a.card:hover {
     --bs-pagination-active-bg: var(--green);
     --bs-pagination-active-border-color: var(--green);
     --bs-pagination-border-radius: 8px;
-    --bs-pagination-focus-box-shadow: 0 0 0 3px rgba(31, 77, 58, 0.15);
+    --bs-pagination-focus-box-shadow: 0 0 0 3px rgba(0, 144, 64, 0.15);
 }
 
 .badge {
@@ -630,7 +630,7 @@ dt {
     background: currentColor;
 }
 
-.pill-success { background: var(--green-tint); color: var(--green); }
+.pill-success { background: var(--green-tint); color: var(--green-dark); }
 .pill-warning { background: var(--amber-tint); color: var(--amber); }
 .pill-danger { background: var(--red-tint); color: var(--red); }
 .pill-primary { background: var(--blue-tint); color: var(--blue); }
@@ -766,7 +766,7 @@ progress.bar::-moz-progress-bar { background: var(--green); border-radius: 999px
     align-items: center;
     gap: 0.4rem;
     font-weight: 500;
-    color: var(--green);
+    color: var(--green-dark);
     text-decoration: none;
 }
 
@@ -782,7 +782,7 @@ progress.bar::-moz-progress-bar { background: var(--green); border-radius: 999px
 }
 
 .hero .eyebrow {
-    color: #c5d6cc;
+    color: #d6f0df;
     font-size: 0.85rem;
     margin-bottom: 0.4rem;
 }
@@ -796,7 +796,7 @@ progress.bar::-moz-progress-bar { background: var(--green); border-radius: 999px
 }
 
 .hero .detail {
-    color: #dbe6df;
+    color: #e6f6ec;
     font-size: 0.88rem;
 }
 
@@ -981,7 +981,7 @@ progress.bar::-moz-progress-bar { background: var(--green); border-radius: 999px
 }
 
 .choice input:focus-visible + .box {
-    box-shadow: 0 0 0 3px rgba(31, 77, 58, 0.25);
+    box-shadow: 0 0 0 3px rgba(0, 144, 64, 0.25);
 }
 
 .choice .text {
@@ -1066,7 +1066,7 @@ progress.bar::-moz-progress-bar { background: var(--green); border-radius: 999px
 
 .counter:focus-within {
     border-color: var(--green);
-    box-shadow: 0 0 0 3px rgba(31, 77, 58, 0.15);
+    box-shadow: 0 0 0 3px rgba(0, 144, 64, 0.15);
 }
 
 .total-row {
@@ -1339,5 +1339,367 @@ progress.bar::-moz-progress-bar { background: var(--green); border-radius: 999px
 
     .page {
         max-width: none;
+    }
+}
+
+/* ---------- School identity: logo and sign-in over the campus photo ---------- */
+
+.brand-logo {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 50%;
+}
+
+.topbar .brand-logo {
+    width: 32px;
+    height: 32px;
+}
+
+.auth {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    /* The dark layer keeps the card and its text readable over any part of the photo. */
+    background:
+        linear-gradient(rgba(20, 24, 22, 0.45), rgba(20, 24, 22, 0.6)),
+        url("../images/pnc-campus.jpg") center / cover no-repeat fixed #2c302e;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 430px;
+    padding: 2rem 2rem 1.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 20px;
+    background: rgba(58, 62, 64, 0.72);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    color: #fff;
+}
+
+.auth-logo {
+    display: block;
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 0.9rem;
+    border-radius: 50%;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.auth-card .school {
+    text-align: center;
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.auth-card .system {
+    text-align: center;
+    color: #e2e5e3;
+    font-size: 0.88rem;
+    margin: 0.25rem 0 1.5rem;
+}
+
+.auth-card h1 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.auth-card .form-label, .auth-card a {
+    color: #fff;
+}
+
+.auth-card .hint {
+    color: #dfe3e1;
+    font-size: 0.82rem;
+}
+
+.auth-card .form-control, .auth-card .form-select {
+    border-color: transparent;
+    background-color: rgba(255, 255, 255, 0.96);
+}
+
+.auth-card .form-control:focus, .auth-card .form-select:focus {
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(0, 190, 90, 0.55);
+}
+
+.auth-card .btn-primary {
+    --bs-btn-font-weight: 600;
+    --bs-btn-focus-shadow-rgb: 255, 255, 255;
+}
+
+.auth-card .alert {
+    font-size: 0.88rem;
+}
+
+.auth-card .alert-danger {
+    background: #fbe3e0;
+}
+
+.auth-card .rule {
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.22);
+    margin: 1.25rem 0 1rem;
+    opacity: 1;
+}
+
+.auth-card .doc {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    font-size: 0.88rem;
+}
+
+.auth-card .doc:hover .doc-title {
+    text-decoration: underline;
+}
+
+@media (max-width: 479.98px) {
+    .auth-card {
+        padding: 1.5rem 1.25rem 1.25rem;
+    }
+}
+
+@media print {
+    .auth {
+        background: #fff;
+    }
+}
+
+/* ---------- Shell, second pass: top bar on every screen, dark green sidebar that opens and closes ---------- */
+
+:root {
+    --side-bg: #0b4d2a;
+    --side-ink: #eef6f0;
+    --side-muted: #a9cdb7;
+    --topbar-h: 62px;
+}
+
+.topbar {
+    display: flex;
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: var(--topbar-h);
+    z-index: 40;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1.25rem 0 0.9rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+}
+
+.topbar .icon-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    color: var(--ink);
+}
+
+.topbar .icon-btn .icon {
+    width: 1.3rem;
+    height: 1.3rem;
+}
+
+.topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.topbar .brand-logo {
+    width: 40px;
+    height: 40px;
+}
+
+.topbar .brand-name {
+    font-size: 1.08rem;
+    white-space: nowrap;
+}
+
+.topbar .brand-sub {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.topbar-id {
+    margin-left: auto;
+    text-align: right;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.topbar-id .label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+.topbar-id .value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.side {
+    top: var(--topbar-h);
+    background: var(--side-bg);
+    border-right: 0;
+    color: var(--side-ink);
+    transform: none;
+    transition: transform 0.2s ease;
+}
+
+.side-module {
+    padding: 1.1rem 1.3rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--side-muted);
+}
+
+.side-nav a, .side-nav button {
+    color: var(--side-ink);
+}
+
+.side-nav .icon, .side-nav a.active .icon {
+    color: var(--side-muted);
+}
+
+.side-nav a:hover, .side-nav button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.side-nav a.active {
+    background: rgba(255, 255, 255, 0.16);
+    font-weight: 600;
+}
+
+.side-nav a.active .icon {
+    color: #fff;
+}
+
+.side-nav a:focus-visible, .side-nav button:focus-visible {
+    border-color: #fff;
+}
+
+.side-rule {
+    border-top-color: rgba(255, 255, 255, 0.16);
+}
+
+.side-user {
+    border-top-color: rgba(255, 255, 255, 0.16);
+}
+
+.side-user a, .side-user .icon-btn {
+    color: var(--side-ink);
+}
+
+.side-user .sub {
+    color: var(--side-muted);
+}
+
+.side-user .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.main {
+    margin-left: 230px;
+    padding-top: calc(var(--topbar-h) + 2.25rem);
+    transition: margin-left 0.2s ease;
+}
+
+/* Wide screens: the menu button hides the sidebar and gives the page the full width. */
+@media (min-width: 900px) {
+    .side-closed .side {
+        transform: translateX(-100%);
+    }
+
+    .side-closed .main {
+        margin-left: 0;
+    }
+}
+
+/* Small screens: the sidebar starts hidden and slides over the page. */
+@media (max-width: 899.98px) {
+    .side {
+        transform: translateX(-100%);
+        box-shadow: none;
+    }
+
+    .side-open .side {
+        transform: none;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .side-open .scrim {
+        display: block;
+        position: fixed;
+        inset: var(--topbar-h) 0 0 0;
+        z-index: 25;
+        background: rgba(28, 27, 24, 0.4);
+    }
+
+    .main {
+        margin-left: 0;
+        padding-top: calc(var(--topbar-h) + 1.5rem);
+    }
+
+    .topbar .brand-sub {
+        display: none;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .topbar .brand-name {
+        font-size: 0.95rem;
+        white-space: normal;
+        line-height: 1.1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .side, .main {
+        transition: none;
+    }
+}
+
+/* ---------- Live updates ---------- */
+
+.live-toast {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.7rem 0.8rem 0.7rem 1.1rem;
+    border-radius: 12px;
+    background: var(--side-bg);
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.live-toast[hidden] {
+    display: none;
+}
+
+@media print {
+    .main {
+        padding-top: 0;
     }
 }

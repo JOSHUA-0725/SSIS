@@ -25,6 +25,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/dashboard', [AccountController::class, 'dashboard'])->name('dashboard');
+    Route::get('/live', [AccountController::class, 'live'])->name('live');
     Route::get('/profile', [AccountController::class, 'profile'])->name('profile');
     Route::put('/profile/password', [AccountController::class, 'updatePassword'])->name('profile.password');
     Route::get('/notifications', [AccountController::class, 'notifications'])->name('notifications');
