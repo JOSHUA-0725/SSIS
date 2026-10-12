@@ -23,7 +23,8 @@ COPY . .
 RUN composer dump-autoload --optimize --no-dev \
     && sed -i 's/\r$//' docker/start.sh \
     && chmod +x docker/start.sh \
-    && mkdir -p storage/app storage/logs storage/framework/cache/data storage/framework/sessions storage/framework/views bootstrap/cache \n    && chown -R www-data:www-data storage bootstrap/cache
+    && mkdir -p storage/app storage/logs storage/framework/cache/data storage/framework/sessions storage/framework/views bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 10000
 CMD ["docker/start.sh"]
