@@ -6,9 +6,8 @@
 <body>
 <main class="auth">
     <div class="auth-card">
-        <img class="auth-logo" src="{{ asset('images/pnc-logo.png') }}" alt="Pamantasan ng Cabuyao seal" width="96" height="96">
-        <p class="school">Pamantasan ng Cabuyao</p>
-        <p class="system">Student Services Information System</p>
+        <img class="auth-logo" src="{{ asset('images/ssis-logo.png') }}" alt="Student Services Information System seal" width="96" height="96">
+        <p class="school mb-4">Student Services Information System</p>
 
         <h1>Forgot password</h1>
         <p class="hint mb-3">Enter your username and the email on your school record. The MIS office will check the request and give you a temporary password.</p>

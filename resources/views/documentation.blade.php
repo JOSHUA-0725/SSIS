@@ -8,8 +8,8 @@
     <div class="guest-box wide">
         <p><a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="link-arrow">@include('partials.icon', ['name' => 'arrow-left']) Back</a></p>
         <div class="d-flex align-items-center gap-3 mb-3">
-            <img class="brand-logo" src="{{ asset('images/pnc-logo.png') }}" alt="Pamantasan ng Cabuyao seal" width="40" height="40">
-            <span class="muted">Pamantasan ng Cabuyao · Student Services Information System</span>
+            <img class="brand-logo" src="{{ asset('images/ssis-logo.png') }}" alt="Student Services Information System seal" width="40" height="40">
+            <span class="muted">Student Services Information System</span>
         </div>
         <h1>System documentation</h1>
         <p class="muted mb-4">The Student Services Information System (SSIS) replaces the physical queues for enrollment clearance, grade viewing, and document requests. This page summarises how it was planned, designed, and tested.</p>
@@ -22,7 +22,7 @@
                     <tr><td>Student Portal</td><td>Students</td><td>Clearance tracker, grades with GWA, payments, notifications</td></tr>
                     <tr><td>Document Request System</td><td>Students, Cashier, Registrar</td><td>Online filing, payment, status tracking, claim stub or certified e-copy</td></tr>
                     <tr><td>Registrar Module</td><td>Registrar</td><td>Student records, enrollment, terms and grade release, request processing, final clearance</td></tr>
-                    <tr><td>Cashier Module</td><td>Cashier</td><td>Charges, payment posting, online payment verification, ledger, collection report</td></tr>
+                    <tr><td>Cashier Module</td><td>Cashier</td><td>Charges, payment posting, proof verification, ledger, collection report</td></tr>
                     <tr><td>Department Module</td><td>Faculty, Department Heads, clearance offices</td><td>Grade encoding and approval, office clearance</td></tr>
                     <tr><td>Admin Module</td><td>Administrator</td><td>Users and roles, document types and fees, audit log</td></tr>
                 </tbody>
@@ -63,8 +63,8 @@
                     <tr><td>1</td><td>Sign in</td><td>The student chooses Student, enters the student number and password</td></tr>
                     <tr><td>2</td><td>Overview</td><td>Clearance progress, what is blocking enrollment, GWA, and requests in progress</td></tr>
                     <tr><td>3</td><td>Document requests</td><td>The student picks a document, copies, purpose, and how to receive it</td></tr>
-                    <tr><td>4</td><td>Payments</td><td>The student pays with GCash, Maya, or online banking and gets a reference number</td></tr>
-                    <tr><td>5</td><td>Cashier: Verify payments</td><td>The Cashier confirms the payment; the request becomes Paid</td></tr>
+                    <tr><td>4</td><td>Payments</td><td>The student opens a cash payment slip and pays at the Cashier window</td></tr>
+                    <tr><td>5</td><td>Cashier: Post payment</td><td>The Cashier posts the cash and issues an official receipt; the request becomes Paid</td></tr>
                     <tr><td>6</td><td>Registrar: Document requests</td><td>The Registrar processes the request and sets a claim date or uploads the e-copy</td></tr>
                     <tr><td>7</td><td>Request tracker</td><td>The student sees Ready, opens the claim stub or downloads the e-copy</td></tr>
                 </tbody>

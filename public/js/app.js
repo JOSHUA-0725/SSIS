@@ -45,17 +45,6 @@ function init(root) {
         copies.addEventListener('input', update);
         update();
     }
-
-    // Payments page: the button says what the chosen method will do.
-    const payButton = root.querySelector('[data-pay-button]');
-    if (payButton) {
-        const apply = () => {
-            const chosen = root.querySelector('input[name="method"]:checked');
-            payButton.textContent = chosen ? chosen.dataset.action : payButton.textContent;
-        };
-        root.querySelectorAll('input[name="method"]').forEach((radio) => radio.addEventListener('change', apply));
-        apply();
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

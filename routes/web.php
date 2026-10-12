@@ -42,8 +42,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/queue/leave', [StudentPortalController::class, 'leaveQueue'])->name('queue.leave');
         Route::post('/enroll', [StudentPortalController::class, 'enrollBlock'])->name('enroll');
         Route::get('/payments', [StudentPortalController::class, 'payments'])->name('payments');
-        Route::get('/payments/checkout', [StudentPortalController::class, 'checkout'])->name('payments.checkout');
-        Route::post('/payments', [StudentPortalController::class, 'pay'])->name('payments.pay');
+        Route::get('/payments/slip', [StudentPortalController::class, 'cashSlip'])->name('payments.slip');
         Route::get('/requests', [StudentPortalController::class, 'requests'])->name('requests');
         Route::post('/requests', [StudentPortalController::class, 'storeRequest'])->name('requests.store');
         Route::get('/requests/{docRequest:reference_no}', [StudentPortalController::class, 'showRequest'])->name('requests.show');
@@ -89,10 +88,15 @@ Route::middleware('auth')->group(function () {
     });
 
     // Department Module
-    Route::middleware('role:Faculty')->prefix('faculty')->name('faculty.')->group(function () {
+    // Whoever teaches a class section encodes its grades: a professor, or a faculty member who also teaches.
+    Route::middleware('role:Faculty,Professor')->prefix('faculty')->name('faculty.')->group(function () {
         Route::get('/classes', [DepartmentController::class, 'classes'])->name('classes');
         Route::get('/classes/{section}', [DepartmentController::class, 'encode'])->name('encode');
         Route::put('/classes/{section}', [DepartmentController::class, 'saveGrades'])->name('encode.save');
+    });
+    Route::middleware('role:Faculty')->prefix('faculty')->name('faculty.')->group(function () {
+        Route::get('/loads', [DepartmentController::class, 'loads'])->name('loads');
+        Route::put('/loads/{section}', [DepartmentController::class, 'assignLoad'])->name('loads.assign');
         Route::get('/enrollment', [DepartmentController::class, 'enrollment'])->name('enrollment');
         Route::put('/enrollment/block', [DepartmentController::class, 'setBlockEnrollment'])->name('enrollment.block');
         Route::post('/enrollment/slots', [DepartmentController::class, 'requestSlots'])->name('enrollment.slots');

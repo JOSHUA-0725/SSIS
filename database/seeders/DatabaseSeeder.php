@@ -46,6 +46,9 @@ class DatabaseSeeder extends Seeder
         $registrar = $staff('registrar', 'Elena Ramos', 'Registrar', ['office_id' => $office['REG']]);
         $cashier = $staff('cashier', 'Roberto Aquino', 'Cashier', ['office_id' => $office['CASH']]);
         $faculty = $staff('faculty', 'Prof. Antonio Garcia', 'Faculty', ['department_id' => $ccs->id]);
+        // Professors handle the subjects: each sees their own class sections in My classes.
+        $santos = $staff('prof', 'Prof. Liza Santos', 'Professor', ['department_id' => $ccs->id]);
+        $reyes = $staff('prof2', 'Prof. Miguel Reyes', 'Professor', ['department_id' => $ccs->id]);
         $head = $staff('head', 'Dr. Lourdes Mendoza', 'Department Head', ['department_id' => $ccs->id]);
         $library = $staff('library', 'Carmen Villanueva', 'Signatory', ['office_id' => $office['LIB']]);
         $laboratory = $staff('laboratory', 'Ramon Castillo', 'Signatory', ['office_id' => $office['LAB']]);
@@ -73,13 +76,13 @@ class DatabaseSeeder extends Seeder
         $current = AcademicTerm::create(['school_year' => '2026-2027', 'semester' => '1st', 'is_active' => true, 'encoding_open' => true]);
 
         $subject = fn (string $code, string $title) => Subject::create(['department_id' => $ccs->id, 'code' => $code, 'title' => $title, 'units' => 3]);
-        $section = fn (Subject $s, AcademicTerm $t, string $status = 'Draft') => ClassSection::create([
-            'subject_id' => $s->id, 'term_id' => $t->id, 'section_code' => 'BSIT-3A', 'faculty_id' => $faculty->id,
+        $section = fn (Subject $s, AcademicTerm $t, string $status = 'Draft', ?User $teacher = null) => ClassSection::create([
+            'subject_id' => $s->id, 'term_id' => $t->id, 'section_code' => 'BSIT-3A', 'faculty_id' => ($teacher ?? $faculty)->id,
             'sheet_status' => $status,
             'approved_by' => $status === 'Approved' ? $head->id : null,
             'approved_at' => $status === 'Approved' ? now()->subMonths(4) : null,
         ]);
-        $enroll = function (ClassSection $sec, array $grades = []) use ($students, $faculty) {
+        $enroll = function (ClassSection $sec, array $grades = []) use ($students) {
             foreach ($students as $i => $student) {
                 $enrollment = Enrollment::create(['student_id' => $student->id, 'section_id' => $sec->id]);
                 if (isset($grades[$i])) {
@@ -87,7 +90,7 @@ class DatabaseSeeder extends Seeder
                     $rating = GradeService::finalRating($midterm, $final);
                     Grade::create([
                         'enrollment_id' => $enrollment->id, 'midterm_grade' => $midterm, 'final_grade' => $final,
-                        'final_rating' => $rating, 'remarks' => GradeService::remarks($rating), 'encoded_by' => $faculty->id,
+                        'final_rating' => $rating, 'remarks' => GradeService::remarks($rating), 'encoded_by' => $sec->faculty_id,
                     ]);
                 }
             }
@@ -98,10 +101,10 @@ class DatabaseSeeder extends Seeder
         $enroll($section($subject('IT 222', 'Database Management Systems'), $past, 'Approved'), [[2.00, 1.75], [1.50, 1.25], [3.00, 2.75]]);
 
         // This term: one sheet waiting for the Department Head, one half-encoded draft, two empty.
-        $enroll($section($subject('IT 311', 'Systems Analysis and Design'), $current, 'Submitted'), [[2.00, 1.50], [1.25, 1.50], [2.75, 2.50]]);
-        $enroll($section($subject('IT 312', 'Information Assurance and Security'), $current), [[1.75, null], [1.50, null]]);
-        $enroll($section($subject('IT 313', 'Web Systems and Technologies'), $current));
-        $enroll($section($subject('GE 105', 'Ethics'), $current));
+        $enroll($section($subject('IT 311', 'Systems Analysis and Design'), $current, 'Submitted', $santos), [[2.00, 1.50], [1.25, 1.50], [2.75, 2.50]]);
+        $enroll($section($subject('IT 312', 'Information Assurance and Security'), $current, 'Draft', $santos), [[1.75, null], [1.50, null]]);
+        $enroll($section($subject('IT 313', 'Web Systems and Technologies'), $current, 'Draft', $reyes));
+        $enroll($section($subject('GE 105', 'Ethics'), $current, 'Draft', $reyes));
 
         // Juan and Maria are regular students of block BSIT-3A; Jose is irregular and lines up within the approved slots.
         $juan->update(['block_section' => 'BSIT-3A']);

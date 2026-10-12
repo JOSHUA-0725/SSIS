@@ -52,7 +52,7 @@
                     @if ($pendingProof)
                         <p class="detail mt-2 mb-0">Your payment is waiting for the Cashier to verify.</p>
                     @else
-                        <a href="{{ route('student.payments') }}" class="btn btn-light">Pay online now</a>
+                        <a href="{{ route('student.payments') }}" class="btn btn-light">See how to pay</a>
                     @endif
                 </section>
 

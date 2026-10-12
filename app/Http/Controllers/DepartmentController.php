@@ -9,6 +9,7 @@ use App\Models\Grade;
 use App\Models\Notification;
 use App\Models\SlotRequest;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\EnrollmentService;
 use App\Services\GradeService;
 use DomainException;
@@ -18,6 +19,55 @@ use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
+    // ----- Faculty: which professor handles each subject -----
+
+    /** Accounts that can teach in a department: its professors and its faculty. */
+    private function instructors(int $departmentId)
+    {
+        return User::whereHas('role', fn ($q) => $q->whereIn('name', ['Professor', 'Faculty']))
+            ->where('department_id', $departmentId)->where('status', 'Active')->orderBy('name')->get();
+    }
+
+    public function loads(Request $request)
+    {
+        $departmentId = $request->user()->department_id;
+        abort_unless($departmentId, 403, 'Your account is not assigned to a department.');
+        $term = AcademicTerm::active();
+
+        return view('department.loads', [
+            'term' => $term,
+            'department' => $request->user()->department,
+            'instructors' => $this->instructors($departmentId),
+            'sections' => ClassSection::with(['subject', 'faculty'])->withCount('enrollments')
+                ->where('term_id', $term?->id)
+                ->whereHas('subject', fn ($q) => $q->where('department_id', $departmentId))
+                ->get()->sortBy(fn ($section) => $section->subject->code.' '.$section->section_code)->values(),
+        ]);
+    }
+
+    public function assignLoad(Request $request, ClassSection $section)
+    {
+        $departmentId = $request->user()->department_id;
+        abort_unless($departmentId && $section->subject->department_id === $departmentId, 403);
+
+        $data = $request->validate(['faculty_id' => ['required', Rule::in($this->instructors($departmentId)->pluck('id')->all())]]);
+
+        // Once a grade sheet is with the Department Head, the name on it must not change.
+        if (in_array($section->sheet_status, ['Submitted', 'Approved'], true)) {
+            return back()->withErrors(['faculty_id' => "The grade sheet of {$section->subject->code} is already ".strtolower($section->sheet_status).', so its professor cannot be changed.']);
+        }
+        if ((int) $data['faculty_id'] === $section->faculty_id) {
+            return back();
+        }
+
+        $old = $section->faculty_id;
+        $section->update(['faculty_id' => (int) $data['faculty_id']]);
+        AuditLog::record('UPDATE', 'class_sections', $section->id, ['faculty_id' => $old], ['faculty_id' => $section->faculty_id]);
+        Notification::notify($section->faculty_id, 'Subject assigned to you', "{$section->subject->code} · {$section->subject->title} ({$section->section_code}) is now in My classes.");
+
+        return back()->with('status', "{$section->subject->code} ({$section->section_code}) is now handled by {$section->faculty()->value('name')}.");
+    }
+
     // ----- Faculty: enrollment of the department -----
 
     public function enrollment(Request $request)

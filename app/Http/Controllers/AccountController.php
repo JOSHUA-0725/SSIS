@@ -72,7 +72,7 @@ class AccountController extends Controller
                 ['Proofs to verify', Payment::where('status', 'For Verification')->count(), route('cashier.proofs')],
                 ['Unpaid document requests', DocumentRequest::where('status', 'Pending Payment')->count(), route('cashier.payments')],
             ],
-            'Faculty' => [
+            'Faculty', 'Professor' => [
                 ['My classes this term', ClassSection::where('faculty_id', $user->id)->where('term_id', $termId)->count(), route('faculty.classes')],
                 ['Sheets returned to me', ClassSection::where('faculty_id', $user->id)->where('sheet_status', 'Returned')->count(), route('faculty.classes')],
                 ['Encoding period', $term?->encoding_open ? 'Open' : 'Closed', route('faculty.classes')],

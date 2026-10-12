@@ -161,6 +161,42 @@ class WorkflowTest extends SsisTestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'CREATE', 'table_name' => 'grades', 'user_id' => $faculty->id]);
     }
 
+    public function test_faculty_assigns_a_subject_to_a_professor_who_then_encodes_its_grades(): void
+    {
+        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $outsider = $this->makeUser('Professor', ['department_id' => \App\Models\Department::where('code', 'CBA')->value('id')]);
+        $student = $this->makeStudent();
+        $section = $this->makeSection($faculty, $student);
+
+        $this->actingAs($faculty)->get('/faculty/loads')->assertOk()->assertSee($section->subject->code)->assertSee($professor->name);
+        // Only an instructor of the same department can be chosen.
+        $this->actingAs($faculty)->put("/faculty/loads/{$section->id}", ['faculty_id' => $outsider->id])->assertSessionHasErrors('faculty_id');
+        $this->actingAs($faculty)->put("/faculty/loads/{$section->id}", ['faculty_id' => $professor->id])->assertSessionHasNoErrors();
+        $this->assertSame($professor->id, $section->fresh()->faculty_id);
+        $this->assertDatabaseHas('notifications', ['user_id' => $professor->id, 'title' => 'Subject assigned to you']);
+
+        // The subject moves to the professor, who encodes and submits the grades.
+        $this->actingAs($professor)->get('/dashboard')->assertOk()->assertSee('My classes this term');
+        $this->actingAs($professor)->get('/faculty/classes')->assertOk()->assertSee($section->subject->code);
+        $this->actingAs($professor)->get("/faculty/classes/{$section->id}")->assertOk();
+        $this->actingAs($faculty)->get("/faculty/classes/{$section->id}")->assertForbidden();
+        $this->actingAs($outsider)->get("/faculty/classes/{$section->id}")->assertForbidden();
+
+        // Professors teach; they do not run the department's enrollment or loads.
+        $this->actingAs($professor)->get('/faculty/loads')->assertForbidden();
+        $this->actingAs($professor)->get('/faculty/enrollment')->assertForbidden();
+        $this->actingAs($professor)->put("/faculty/loads/{$section->id}", ['faculty_id' => $professor->id])->assertForbidden();
+
+        // A submitted grade sheet keeps its professor.
+        $section->update(['sheet_status' => 'Submitted']);
+        $this->actingAs($faculty)->put("/faculty/loads/{$section->id}", ['faculty_id' => $faculty->id])->assertSessionHasErrors('faculty_id');
+        $this->assertSame($professor->id, $section->fresh()->faculty_id);
+
+        $this->post('/logout');
+        $this->post('/login', ['portal' => 'department', 'username' => $professor->username, 'password' => self::PASSWORD])->assertRedirect('/dashboard');
+    }
+
     public function test_faculty_cannot_encode_when_the_period_is_closed(): void
     {
         $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);

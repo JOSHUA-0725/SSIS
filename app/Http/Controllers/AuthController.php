@@ -21,7 +21,7 @@ class AuthController extends Controller
         'student' => ['label' => 'Student', 'module' => 'Student Portal', 'about' => 'Grades, payments, clearance, and document requests', 'field' => 'Student username', 'hint' => 'student', 'icon' => 'graduation', 'roles' => ['Student']],
         'registrar' => ['label' => 'Registrar', 'module' => 'Registrar Module', 'about' => 'Student records, terms, and document requests', 'field' => 'Registrar username', 'hint' => 'registrar', 'icon' => 'file', 'roles' => ['Registrar']],
         'cashier' => ['label' => 'Cashier', 'module' => 'Cashier Module', 'about' => 'Assessments, payments, and collection reports', 'field' => 'Cashier username', 'hint' => 'cashier', 'icon' => 'wallet', 'roles' => ['Cashier']],
-        'department' => ['label' => 'Department', 'module' => 'Department Module', 'about' => 'Faculty, department heads, and clearance offices', 'field' => 'Faculty or office username', 'hint' => 'faculty', 'icon' => 'building', 'roles' => ['Faculty', 'Department Head', 'Signatory']],
+        'department' => ['label' => 'Department', 'module' => 'Department Module', 'about' => 'Faculty, professors, department heads, and clearance offices', 'field' => 'Faculty, professor, or office username', 'hint' => 'faculty', 'icon' => 'building', 'roles' => ['Faculty', 'Professor', 'Department Head', 'Signatory']],
         'admin' => ['label' => 'Admin', 'module' => 'Admin Module', 'about' => 'User accounts, document types, and the audit log', 'field' => 'Admin username', 'hint' => 'admin', 'icon' => 'shield', 'roles' => ['Administrator']],
     ];
 

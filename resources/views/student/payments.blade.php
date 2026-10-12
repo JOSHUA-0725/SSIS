@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Payments')
-@section('lead', 'Pay fees online or in cash at the Cashier. Payments are reflected in your balance and clearance automatically.')
+@section('lead', 'Pay fees in cash at the Cashier. Payments are reflected in your balance and clearance as soon as the Cashier posts them.')
 
 @section('content')
     <section class="panel mb-4" aria-label="Outstanding balance">
@@ -29,26 +29,10 @@
 
             <div>
                 @if ($payable > 0)
-                    <form method="GET" action="{{ route('student.payments.checkout') }}">
-                        <fieldset>
-                            <legend class="form-label">Pay with</legend>
-                            @foreach ($methods as $index => $method)
-                                @php $name = $method === 'Online Banking' ? 'online banking' : $method; @endphp
-                                <label class="choice">
-                                    <input type="radio" name="method" value="{{ $method }}" @checked($index === 0) required data-action="Pay ₱{{ number_format($payable, 2) }} with {{ $name }}">
-                                    <span class="box"><span class="radio"></span><span class="name">{{ ucfirst($name) }}</span></span>
-                                </label>
-                            @endforeach
-                            <label class="choice">
-                                <input type="radio" name="method" value="Cash" required data-action="Get a cash payment slip">
-                                <span class="box">
-                                    <span class="radio"></span>
-                                    <span class="text"><span class="name d-block">Cash</span><span class="sub">Pay at the Cashier window on campus</span></span>
-                                </span>
-                            </label>
-                        </fieldset>
-                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-2" data-pay-button>Pay ₱{{ number_format($payable, 2) }}</button>
-                    </form>
+                    <div class="stat-label mb-2">How to pay</div>
+                    <p class="fw-medium mb-1">Pay in cash at the Cashier window on campus</p>
+                    <p class="muted small">Show your payment slip, on your phone or printed. The Cashier posts the payment and gives you an official receipt.</p>
+                    <a href="{{ route('student.payments.slip') }}" class="btn btn-primary btn-lg w-100">@include('partials.icon', ['name' => 'receipt']) Get a cash payment slip</a>
                 @elseif ($pending > 0)
                     <div class="stat-label mb-2">Nothing more to pay right now</div>
                     <p class="muted mb-0">Your payment is with the Cashier for verification. Your balance and clearance update as soon as it is confirmed.</p>

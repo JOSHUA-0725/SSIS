@@ -12,7 +12,7 @@
 @section('content')
     <div class="stub">
         <div class="text-center mb-4">
-            <div class="fw-semibold">Pamantasan ng Cabuyao · Cashier's Office</div>
+            <div class="fw-semibold">Student Services Information System · Cashier's Office</div>
             <div class="muted">Cash Payment Slip</div>
         </div>
         <dl class="row mb-3">
