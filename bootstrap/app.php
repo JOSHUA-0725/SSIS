@@ -13,6 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Behind a hosting proxy (Render), the HTTPS scheme comes from the forwarded headers.
+        $middleware->trustProxies(at: '*');
         $middleware->alias(['role' => EnsureRole::class]);
         $middleware->web(append: [SecurityHeaders::class]);
         $middleware->redirectGuestsTo(fn () => route('login'));
