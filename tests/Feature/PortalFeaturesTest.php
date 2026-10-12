@@ -62,7 +62,7 @@ class PortalFeaturesTest extends SsisTestCase
 
     public function test_public_pages_open_without_signing_in(): void
     {
-        $this->get('/login')->assertOk()->assertSee('Choose your portal')->assertSee('Pamantasan ng Cabuyao');
+        $this->get('/login')->assertOk()->assertSee('Choose your portal')->assertSee('Student Services Information System')->assertDontSee('Pamantasan ng Cabuyao');
         foreach (AuthController::PORTALS as $key => $portal) {
             $this->get('/login')->assertSee(route('login.portal', $key));
             $this->get("/login/{$key}")->assertOk()->assertSee($portal['module'])->assertSee($portal['field']);
@@ -216,32 +216,34 @@ class PortalFeaturesTest extends SsisTestCase
         $this->assertSame(2, Enrollment::count());
     }
 
-    // ----- Online payment -----
+    // ----- Payments already sent online -----
 
-    public function test_online_payment_is_verified_by_the_cashier_then_clears_the_student(): void
+    /** A payment sent before online payment was removed, still waiting for the Cashier. */
+    private function pendingOnlinePayment(Assessment ...$charges): string
+    {
+        foreach ($charges as $charge) {
+            Payment::create([
+                'assessment_id' => $charge->id, 'reference_no' => 'GC-10000001', 'amount' => $charge->amount,
+                'method' => 'GCash', 'status' => 'For Verification', 'paid_at' => now(),
+            ]);
+        }
+
+        return 'GC-10000001';
+    }
+
+    public function test_pending_online_payment_is_verified_by_the_cashier_then_clears_the_student(): void
     {
         $student = $this->makeStudent();
         $cashier = $this->makeUser('Cashier');
-        Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 1000]);
+        $tuition = Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 1000]);
         ClearanceService::ensureFor($student, $this->term);
         $docRequest = DocumentRequestService::file($student, DocumentType::where('name', 'Transcript of Records')->first(), 1, 'Employment');
+        $reference = $this->pendingOnlinePayment($tuition, $docRequest->assessment);
 
+        // Nothing is paid until the Cashier confirms.
         $this->actingAs($student->user)->get('/student/payments')->assertOk()->assertSee('1,150.00');
-        $this->actingAs($student->user)->get('/student/payments/checkout?method=GCash')->assertOk()->assertSee('Confirm payment of');
-        $this->actingAs($student->user)->post('/student/payments', ['method' => 'GCash'])->assertRedirect('/student/payments')->assertSessionHas('status');
-
-        // One reference covers both charges; nothing is paid until the Cashier confirms.
-        $payments = Payment::all();
-        $this->assertCount(2, $payments);
-        $this->assertCount(1, $payments->pluck('reference_no')->unique());
-        $reference = $payments->first()->reference_no;
-        $this->assertStringStartsWith('GC-', $reference);
         $this->assertSame(1150.00, LedgerService::balance($student));
         $this->assertSame('Pending Payment', $docRequest->fresh()->status);
-
-        // The student cannot pay the same charges twice while one payment is being verified.
-        $this->actingAs($student->user)->post('/student/payments', ['method' => 'Maya'])->assertSessionHasErrors('method');
-        $this->assertSame(2, Payment::count());
 
         $this->actingAs($cashier)->get('/cashier/proofs')->assertOk()->assertSee($reference);
         $this->actingAs($cashier)->put("/cashier/online-payments/{$reference}", ['action' => 'confirm'])->assertSessionHasNoErrors();
@@ -256,29 +258,23 @@ class PortalFeaturesTest extends SsisTestCase
         $this->actingAs($cashier)->put("/cashier/online-payments/{$reference}", ['action' => 'reject'])->assertSessionHasErrors('action');
     }
 
-    public function test_rejected_online_payment_can_be_paid_again(): void
+    public function test_rejected_online_payment_leaves_the_balance_unpaid(): void
     {
         $student = $this->makeStudent();
-        Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 500]);
-
-        $this->actingAs($student->user)->post('/student/payments', ['method' => 'Online Banking']);
-        $reference = Payment::first()->reference_no;
-        $this->assertStringStartsWith('OB-', $reference);
+        $reference = $this->pendingOnlinePayment(Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 500]));
 
         $this->actingAs($this->makeUser('Cashier'))->put("/cashier/online-payments/{$reference}", ['action' => 'reject'])->assertSessionHasNoErrors();
         $this->assertSame('Voided', Payment::first()->status);
         $this->assertSame(500.00, LedgerService::balance($student));
-
-        $this->actingAs($student->user)->post('/student/payments', ['method' => 'Maya'])->assertSessionHasNoErrors();
-        $this->assertSame(1, Payment::where('status', 'For Verification')->where('method', 'Maya')->count());
     }
 
-    public function test_only_offered_payment_methods_are_accepted(): void
+    public function test_students_can_no_longer_pay_online(): void
     {
         $student = $this->makeStudent();
         Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 500]);
 
-        $this->actingAs($student->user)->post('/student/payments', ['method' => 'Cash'])->assertSessionHasErrors('method');
+        $this->actingAs($student->user)->get('/student/payments')->assertOk()->assertDontSee('GCash')->assertDontSee('Maya')->assertDontSee('Online banking');
+        $this->actingAs($student->user)->post('/student/payments', ['method' => 'GCash'])->assertStatus(405);
         $this->assertSame(0, Payment::count());
     }
 
@@ -339,7 +335,7 @@ class PortalFeaturesTest extends SsisTestCase
         Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 2450]);
 
         $this->actingAs($student->user)->get('/dashboard')->assertOk()
-            ->assertSee('Settle your balance to clear the Cashier.')->assertSee('2,450.00')->assertSee('Pay online now');
+            ->assertSee('Settle your balance to clear the Cashier.')->assertSee('2,450.00')->assertSee('See what to pay');
 
         $library = ClearanceItem::where('office_id', Office::where('code', 'LIB')->value('id'))->firstOrFail();
         ClearanceService::sign($library, 'On Hold', 'Unreturned book', $this->signatory('LIB'));
@@ -354,7 +350,7 @@ class PortalFeaturesTest extends SsisTestCase
         $student = $this->makeStudent();
 
         $this->actingAs($student->user)->get('/dashboard')->assertOk()
-            ->assertSee('Pamantasan ng Cabuyao')->assertSee('Student ID')->assertSee($student->student_no);
+            ->assertSee('Student Services Information System')->assertDontSee('Pamantasan ng Cabuyao')->assertSee('Student ID')->assertSee($student->student_no);
         $this->actingAs($this->makeUser('Cashier'))->get('/dashboard')->assertOk()->assertSee('User ID');
     }
 
@@ -363,8 +359,8 @@ class PortalFeaturesTest extends SsisTestCase
         $student = $this->makeStudent();
         $charge = Assessment::create(['student_id' => $student->id, 'term_id' => $this->term->id, 'fee_type' => 'Tuition', 'description' => 'Tuition', 'amount' => 800]);
 
-        $this->actingAs($student->user)->get('/student/payments')->assertOk()->assertSee('Pay at the Cashier window on campus');
-        $this->actingAs($student->user)->get('/student/payments/checkout?method=Cash')->assertOk()
+        $this->actingAs($student->user)->get('/student/payments')->assertOk()->assertSee('Pay in cash at the Cashier window on campus')->assertSee(route('student.payments.slip'));
+        $this->actingAs($student->user)->get('/student/payments/slip')->assertOk()
             ->assertSee('Cash Payment Slip')->assertSee($student->student_no)->assertSee('800.00');
 
         // The slip records nothing; the balance changes when the Cashier posts the cash.

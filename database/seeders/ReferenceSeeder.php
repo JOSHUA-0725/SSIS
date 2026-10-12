@@ -14,8 +14,8 @@ class ReferenceSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach (['Student', 'Registrar', 'Cashier', 'Faculty', 'Department Head', 'Signatory', 'Administrator'] as $name) {
-            Role::create(['name' => $name]);
+        foreach (['Student', 'Registrar', 'Cashier', 'Faculty', 'Professor', 'Department Head', 'Signatory', 'Administrator'] as $name) {
+            Role::firstOrCreate(['name' => $name]);
         }
 
         $ccs = Department::create(['code' => 'CCS', 'name' => 'College of Computer Studies']);

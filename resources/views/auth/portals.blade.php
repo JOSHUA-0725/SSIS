@@ -6,9 +6,8 @@
 <body>
 <main class="auth">
     <div class="auth-card">
-        <img class="auth-logo" src="{{ asset('images/pnc-logo.png') }}" alt="Pamantasan ng Cabuyao seal" width="96" height="96">
-        <p class="school">Pamantasan ng Cabuyao</p>
-        <p class="system">Student Services Information System</p>
+        <img class="auth-logo" src="{{ asset('images/ssis-logo.png') }}" alt="Student Services Information System seal" width="96" height="96">
+        <p class="school mb-4">Student Services Information System</p>
 
         @if (session('status'))
             <div class="alert alert-success" role="status">{{ session('status') }}</div>

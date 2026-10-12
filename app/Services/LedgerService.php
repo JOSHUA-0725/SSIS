@@ -81,12 +81,10 @@ class LedgerService
         });
     }
 
-    // ----- Online payments (GCash, Maya, online banking) -----
-
-    public const ONLINE_METHODS = ['GCash' => 'GC', 'Maya' => 'MY', 'Online Banking' => 'OB'];
+    // ----- What the student still owes -----
 
     /**
-     * Charges the student can still pay online. Each gets ->balance (unpaid), ->pending
+     * Charges the student can still pay. Each gets ->balance (unpaid), ->pending
      * (sent but not yet verified) and ->payable (what a new payment would cover).
      */
     public static function payables(Student $student): Collection
@@ -99,43 +97,6 @@ class LedgerService
             })
             ->filter(fn (Assessment $assessment) => $assessment->balance > 0)
             ->values();
-    }
-
-    /**
-     * Record an online payment for everything the student owes. It stays "For Verification"
-     * until the Cashier confirms the money was received.
-     *
-     * @return array{reference: string, amount: float}
-     */
-    public static function startOnlinePayment(Student $student, string $method): array
-    {
-        $payables = self::payables($student)->where('payable', '>', 0);
-        if ($payables->isEmpty()) {
-            throw new DomainException('You have nothing left to pay.');
-        }
-
-        $reference = self::ONLINE_METHODS[$method].'-'.random_int(10000000, 99999999);
-
-        DB::transaction(function () use ($payables, $method, $reference, $student) {
-            foreach ($payables as $assessment) {
-                Payment::create([
-                    'assessment_id' => $assessment->id,
-                    'reference_no' => $reference,
-                    'amount' => $assessment->payable,
-                    'method' => $method,
-                    'status' => 'For Verification',
-                    'paid_at' => now(),
-                ]);
-            }
-
-            AuditLog::record('CREATE', 'payments', null, null, ['reference_no' => $reference, 'method' => $method, 'amount' => $payables->sum('payable')], $student->user_id);
-
-            foreach (User::whereHas('role', fn ($q) => $q->where('name', 'Cashier'))->where('status', 'Active')->pluck('id') as $cashierId) {
-                Notification::notify($cashierId, 'Online payment to verify', "{$student->student_no} paid ₱".number_format($payables->sum('payable'), 2)." via {$method}. Ref. {$reference}.");
-            }
-        });
-
-        return ['reference' => $reference, 'amount' => round($payables->sum('payable'), 2)];
     }
 
     /** Cashier confirms or rejects every charge covered by one online reference. */

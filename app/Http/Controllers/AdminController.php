@@ -20,6 +20,7 @@ class AdminController extends Controller
         'cashier' => ['label' => 'Cashier', 'role' => 'Cashier', 'icon' => 'wallet'],
         'registrar' => ['label' => 'Registrar', 'role' => 'Registrar', 'icon' => 'file'],
         'faculty' => ['label' => 'Faculty', 'role' => 'Faculty', 'icon' => 'book-open'],
+        'professors' => ['label' => 'Professors', 'role' => 'Professor', 'icon' => 'user'],
     ];
 
     public function users(Request $request)

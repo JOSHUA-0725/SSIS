@@ -64,7 +64,7 @@
                                     <option value="{{ $department->id }}" @selected(old('department_id', $user->department_id) == $department->id)>{{ $department->code }}</option>
                                 @endforeach
                             </select>
-                            <div id="deptHelp" class="form-text">Required for Faculty and Department Head.</div>
+                            <div id="deptHelp" class="form-text">Required for Faculty, Professor, and Department Head.</div>
                         </div>
                     @endif
                 </div>

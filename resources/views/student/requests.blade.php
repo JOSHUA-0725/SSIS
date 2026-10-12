@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Document requests')
-@section('lead', 'Request official documents online, pay with GCash, Maya, or online banking, and claim them on a scheduled date or as a certified e-copy.')
+@section('lead', 'Request official documents online, pay the fee in cash at the Cashier, and claim them on a scheduled date or as a certified e-copy.')
 
 @section('content')
     <div class="split">

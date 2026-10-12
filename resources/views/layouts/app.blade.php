@@ -31,7 +31,8 @@
             ['Verify payments', 'cashier.proofs', 'receipt', \App\Models\Payment::where('status', 'For Verification')->count()],
             ['Clearance', 'clearance.index', 'clipboard'], ['Collection report', 'cashier.report', 'chart'],
         ]],
-        'Faculty' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open'], ['Enrollment', 'faculty.enrollment', 'list']]],
+        'Faculty' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open'], ['Subject loads', 'faculty.loads', 'users'], ['Enrollment', 'faculty.enrollment', 'list']]],
+        'Professor' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open']]],
         'Department Head' => ['Department Module', [
             ['Overview', 'dashboard', 'grid'], ['Grade sheets', 'head.sheets', 'book-open'], ['Clearance', 'clearance.index', 'clipboard'],
         ]],
@@ -55,10 +56,10 @@
 <header class="topbar d-print-none">
     <button type="button" class="icon-btn" data-sidebar-toggle aria-controls="sidebar" aria-label="Open or close the menu">@include('partials.icon', ['name' => 'menu'])</button>
     <a class="topbar-brand" href="{{ route('dashboard') }}">
-        <img class="brand-logo" src="{{ asset('images/pnc-logo.png') }}" alt="" width="40" height="40">
+        <img class="brand-logo" src="{{ asset('images/ssis-logo.png') }}" alt="" width="40" height="40">
         <span>
-            <span class="brand-name d-block">Pamantasan ng Cabuyao</span>
-            <span class="brand-sub">University of Cabuyao · Student Services Information System</span>
+            <span class="brand-name d-block">Student Services Information System</span>
+            <span class="brand-sub">SSIS</span>
         </span>
     </a>
     <div class="topbar-id">

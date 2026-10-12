@@ -148,7 +148,7 @@ class StudentPortalController extends Controller
 
         $cashier = $items->first(fn ($i) => $i->office->code === ClearanceService::CASHIER_OFFICE);
         if ($cashier && $cashier->status !== 'Cleared' && $balance > 0) {
-            return ['eyebrow' => "What's blocking your enrollment", 'title' => 'Settle your balance to clear the Cashier.', 'amount' => $balance, 'cta' => 'Pay online now', 'url' => route('student.payments')];
+            return ['eyebrow' => "What's blocking your enrollment", 'title' => 'Settle your balance to clear the Cashier.', 'amount' => $balance, 'cta' => 'See what to pay', 'url' => route('student.payments')];
         }
 
         $waiting = $items->where('status', '!=', 'Cleared')->count();
@@ -308,44 +308,27 @@ class StudentPortalController extends Controller
             'balance' => LedgerService::balance($student),
             'pending' => $payables->sum('pending'),
             'payable' => $payables->sum('payable'),
-            'methods' => array_keys(LedgerService::ONLINE_METHODS),
             'history' => Payment::with('assessment')
                 ->whereHas('assessment', fn ($q) => $q->where('student_id', $student->id))
                 ->latest('paid_at')->latest('id')->get(),
         ]);
     }
 
-    public function checkout(Request $request)
+    /** A slip listing what to pay in cash at the Cashier window. It records nothing. */
+    public function cashSlip(Request $request)
     {
         $student = $this->student($request);
-        $data = $request->validate(['method' => ['required', Rule::in([...array_keys(LedgerService::ONLINE_METHODS), 'Cash'])]]);
         $payables = LedgerService::payables($student)->where('payable', '>', 0);
 
         if ($payables->isEmpty()) {
-            return redirect()->route('student.payments')->withErrors(['method' => 'You have nothing left to pay.']);
+            return redirect()->route('student.payments')->withErrors(['payment' => 'You have nothing left to pay.']);
         }
 
-        return view($data['method'] === 'Cash' ? 'student.cash-slip' : 'student.checkout', [
+        return view('student.cash-slip', [
             'student' => $student->load('program'),
-            'method' => $data['method'],
             'payables' => $payables,
             'total' => $payables->sum('payable'),
         ]);
-    }
-
-    public function pay(Request $request)
-    {
-        $student = $this->student($request);
-        $data = $request->validate(['method' => ['required', Rule::in(array_keys(LedgerService::ONLINE_METHODS))]]);
-
-        try {
-            $payment = LedgerService::startOnlinePayment($student, $data['method']);
-        } catch (DomainException $e) {
-            return redirect()->route('student.payments')->withErrors(['method' => $e->getMessage()]);
-        }
-
-        return redirect()->route('student.payments')->with('status',
-            '₱'.number_format($payment['amount'], 2)." sent through {$data['method']}. Reference {$payment['reference']}. It will show as paid once the Cashier verifies it.");
     }
 
     // ----- Document requests -----
