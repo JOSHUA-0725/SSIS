@@ -8,7 +8,7 @@ class Grade extends Model
 {
     protected $guarded = [];
 
-    protected $casts = ['midterm_grade' => 'float', 'final_grade' => 'float', 'final_rating' => 'float'];
+    protected $casts = ['prelim_grade' => 'float', 'midterm_grade' => 'float', 'final_grade' => 'float', 'final_rating' => 'float'];
 
     public function enrollment()
     {

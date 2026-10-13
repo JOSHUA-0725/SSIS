@@ -12,13 +12,14 @@ class GradeService
         return is_numeric($grade) && $grade >= 1.00 && $grade <= 5.00;
     }
 
-    public static function finalRating(?float $midterm, ?float $final): ?float
+    /** The average of the three grading periods; null until all three are encoded. */
+    public static function finalRating(?float $prelim, ?float $midterm, ?float $final): ?float
     {
-        if ($midterm === null || $final === null) {
+        if ($prelim === null || $midterm === null || $final === null) {
             return null;
         }
 
-        return round(($midterm + $final) / 2, 2);
+        return round(($prelim + $midterm + $final) / 3, 2);
     }
 
     public static function remarks(?float $rating): ?string

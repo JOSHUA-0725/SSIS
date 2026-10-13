@@ -1,25 +1,30 @@
 @extends('layouts.app')
 
 @section('title', 'Terms and grade release')
-@section('lead', 'Open or close grade encoding, and release approved grades to students.')
+@section('lead', 'Open or close enrollment and grade encoding, and release approved grades to students.')
 
 @section('content')
     <div class="card mb-4">
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
                 <thead>
-                    <tr><th scope="col">Term</th><th scope="col">Active</th><th scope="col">Grade encoding</th><th scope="col">Grades</th><th scope="col">Actions</th></tr>
+                    <tr><th scope="col">Term</th><th scope="col">Active</th><th scope="col">Enrollment</th><th scope="col">Grade encoding</th><th scope="col">Grades</th><th scope="col">Actions</th></tr>
                 </thead>
                 <tbody>
                     @foreach ($terms as $term)
                         @php
                             $buttons = [];
                             if (! $term->is_active) { $buttons[] = ['activate', 'Set as active', 'btn-outline-primary', 'Make this the active term? The current active term will be closed.']; }
+                            if ($term->is_active) {
+                                $buttons[] = $term->enrollment_open
+                                    ? ['close_enrollment', 'Close enrollment', 'btn-outline-danger', 'Close enrollment? Regular students will no longer be able to enroll.']
+                                    : ['open_enrollment', 'Open enrollment', 'btn-primary', 'Open enrollment? Regular students can then enroll in the subjects of their year level.'];
+                            }
                             if (! $term->grades_released) {
                                 $buttons[] = $term->encoding_open
                                     ? ['close_encoding', 'Close encoding', 'btn-outline-secondary', null]
                                     : ['open_encoding', 'Open encoding', 'btn-outline-secondary', null];
-                                $buttons[] = ['release', 'Release grades', 'btn-primary', 'Release grades to students? Encoding will be closed.'];
+                                $buttons[] = ['release', 'Release grades', 'btn-outline-primary', 'Release grades to students? Encoding will be closed.'];
                             } else {
                                 $buttons[] = ['unrelease', 'Withdraw release', 'btn-outline-danger', 'Hide the grades of this term from students?'];
                             }
@@ -27,6 +32,7 @@
                         <tr>
                             <td class="fw-semibold">{{ $term->label }}</td>
                             <td>{{ $term->is_active ? 'Yes' : 'No' }}</td>
+                            <td>@include('partials.status', ['status' => $term->enrollment_open ? 'Open' : 'Closed'])</td>
                             <td>{{ $term->encoding_open ? 'Open' : 'Closed' }}</td>
                             <td>{{ $term->grades_released ? 'Released' : 'Not released' }}</td>
                             <td>

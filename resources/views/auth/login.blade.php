@@ -16,7 +16,13 @@
             <div class="alert alert-success" role="status">{{ session('status') }}</div>
         @endif
         @if ($errors->any())
-            <div class="alert alert-danger" role="alert">{{ $errors->first() }}</div>
+            <div class="alert alert-danger" role="alert">
+                {{ $errors->first() }}
+                @if (session('retry_seconds'))
+                    @php $left = (int) session('retry_seconds'); @endphp
+                    <div class="mt-1" data-retry-seconds="{{ $left }}" aria-live="off">You can try again in <strong data-retry-text>{{ gmdate($left >= 3600 ? 'G:i:s' : 'i:s', $left) }}</strong>.</div>
+                @endif
+            </div>
         @endif
 
         <form method="POST" action="{{ route('login.attempt') }}" novalidate>
@@ -33,7 +39,7 @@
                 <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
             </div>
 
-            <button type="submit" class="btn btn-primary btn-lg w-100">
+            <button type="submit" class="btn btn-primary btn-lg w-100" data-retry-lock>
                 Sign in
                 @include('partials.icon', ['name' => 'arrow-right'])
             </button>
@@ -46,5 +52,6 @@
         </p>
     </div>
 </main>
+<script src="{{ asset('js/retry.js') }}?v={{ filemtime(public_path('js/retry.js')) }}"></script>
 </body>
 </html>

@@ -1,10 +1,52 @@
 @extends('layouts.app')
 
 @section('eyebrow', $category.' student')
-@section('title', 'Enrollment queue')
-@section('lead', ($term ? "For {$term->label}. " : '').'Get a number here, then wait for it to be called at the Registrar window. This page updates by itself.')
+@section('title', 'Enrollment')
+@section('lead', ($term ? "For {$term->label}. " : '').'As an irregular student you enroll in the subjects your department opens for you. If you need the Registrar, get a queue number below.')
 
 @section('content')
+    @if ($errors->any())
+        <div class="alert alert-danger" role="alert">{{ $errors->first() }}</div>
+    @endif
+
+    <h2 class="panel-title mb-2">Subjects opened for you</h2>
+    <div class="card mb-4">
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead>
+                    <tr><th scope="col">Subject</th><th scope="col">Title</th><th scope="col" class="text-end">Units</th><th scope="col">Section</th><th scope="col">Professor</th></tr>
+                </thead>
+                <tbody>
+                    @forelse ($advised as $section)
+                        <tr>
+                            <th scope="row" class="fw-medium text-nowrap">{{ $section->subject->code }}</th>
+                            <td>{{ $section->subject->title }}</td>
+                            <td class="text-end">{{ $section->subject->units }}</td>
+                            <td class="text-nowrap">{{ $section->section_code }}</td>
+                            <td class="muted">{{ $section->faculty->name }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="text-secondary">Your department has not opened any subject for you yet. Ask your department's faculty; you will be notified when they do.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        @if ($advised->isNotEmpty())
+            <div class="card-body d-flex flex-wrap align-items-center gap-3">
+                @if ($advisedEnrolled)
+                    <span class="fw-medium">You are enrolled in every subject opened for you.</span>
+                @else
+                    <form method="POST" action="{{ route('student.enroll') }}" data-confirm="Enroll in the {{ $advised->count() }} {{ $advised->count() === 1 ? 'subject' : 'subjects' }} opened for you?">
+                        @csrf
+                        <button type="submit" class="btn btn-primary">Enroll in these subjects</button>
+                    </form>
+                    <span class="muted small">{{ $advised->sum('subject.units') }} units in all.</span>
+                @endif
+            </div>
+        @endif
+    </div>
+
+    <h2 class="panel-title mb-2">Registrar queue</h2>
     <div class="overview">
         @if ($ticket)
             <section class="hero queue-ticket" aria-labelledby="ticket-title">
@@ -39,8 +81,6 @@
 
                 @if (! $term)
                     <p class="mb-0">Enrollment is not open: no term is active.</p>
-                @elseif ($slots === 0 && ! $holdsSlot)
-                    <p class="mb-0">There are no open enrollment slots for {{ $category }} students of your department right now. Check again later or ask your department.</p>
                 @else
                     <form method="POST" action="{{ route('student.queue.join') }}">
                         @csrf
@@ -63,10 +103,6 @@
             <section class="panel" aria-label="Waiting in line">
                 <div class="stat-label">Waiting in line</div>
                 <div class="stat-value">{{ $waiting }}</div>
-            </section>
-            <section class="panel" aria-label="Slots left">
-                <div class="stat-label">{{ $category }} slots left in your department</div>
-                <div class="stat-value">{{ $slots }}</div>
             </section>
         </div>
     </div>

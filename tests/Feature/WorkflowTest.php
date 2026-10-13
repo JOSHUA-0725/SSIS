@@ -122,7 +122,7 @@ class WorkflowTest extends SsisTestCase
     public function test_grades_from_encoding_to_student_view(): void
     {
         $student = $this->makeStudent();
-        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $faculty = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
         $head = $this->makeUser('Department Head', ['department_id' => $this->ccs()]);
         $registrar = $this->makeUser('Registrar');
         $section = $this->makeSection($faculty, $student);
@@ -130,15 +130,15 @@ class WorkflowTest extends SsisTestCase
         $url = "/faculty/classes/{$section->id}";
 
         // A grade outside 1.00 to 5.00 is rejected.
-        $this->actingAs($faculty)->put($url, ['action' => 'save', 'grades' => [$enrollmentId => ['midterm' => 6.00, 'final' => 1.50]]])
+        $this->actingAs($faculty)->put($url, ['action' => 'save', 'grades' => [$enrollmentId => ['prelim' => 1.75, 'midterm' => 6.00, 'final' => 1.50]]])
             ->assertSessionHasErrors("grades.{$enrollmentId}.midterm");
         $this->assertSame(0, Grade::count());
 
         // A sheet with a missing grade cannot be submitted.
-        $this->actingAs($faculty)->put($url, ['action' => 'submit', 'grades' => [$enrollmentId => ['midterm' => 2.00, 'final' => null]]])
+        $this->actingAs($faculty)->put($url, ['action' => 'submit', 'grades' => [$enrollmentId => ['prelim' => 1.75, 'midterm' => 2.00, 'final' => null]]])
             ->assertSessionHasErrors('grades');
 
-        $this->actingAs($faculty)->put($url, ['action' => 'submit', 'grades' => [$enrollmentId => ['midterm' => 2.00, 'final' => 1.50]]])
+        $this->actingAs($faculty)->put($url, ['action' => 'submit', 'grades' => [$enrollmentId => ['prelim' => 1.75, 'midterm' => 2.00, 'final' => 1.50]]])
             ->assertSessionHasNoErrors();
         $this->assertSame('Submitted', $section->fresh()->sheet_status);
         $this->assertSame(1.75, Grade::first()->final_rating);
@@ -147,7 +147,7 @@ class WorkflowTest extends SsisTestCase
         // Department Head approves: the sheet is locked for the faculty member.
         $this->actingAs($head)->put("/department/sheets/{$section->id}", ['action' => 'approve'])->assertSessionHasNoErrors();
         $this->assertSame('Approved', $section->fresh()->sheet_status);
-        $this->actingAs($faculty)->put($url, ['action' => 'save', 'grades' => [$enrollmentId => ['midterm' => 1.00, 'final' => 1.00]]])
+        $this->actingAs($faculty)->put($url, ['action' => 'save', 'grades' => [$enrollmentId => ['prelim' => 1.00, 'midterm' => 1.00, 'final' => 1.00]]])
             ->assertSessionHasErrors('grades');
         $this->assertSame(1.75, Grade::first()->final_rating);
 
@@ -176,12 +176,22 @@ class WorkflowTest extends SsisTestCase
         $this->assertSame($professor->id, $section->fresh()->faculty_id);
         $this->assertDatabaseHas('notifications', ['user_id' => $professor->id, 'title' => 'Subject assigned to you']);
 
+        // Faculty also chooses the year level and the section of the class; the grade sheet status is not shown here.
+        $this->actingAs($faculty)->get('/faculty/loads')->assertSee('2nd Year')->assertSee('BSIT B')->assertDontSee('Grade sheet');
+        $this->actingAs($faculty)->put("/faculty/loads/{$section->id}", ['faculty_id' => $professor->id, 'year_level' => 2, 'section' => 'XX-Z'])->assertSessionHasErrors('section');
+        $this->actingAs($faculty)->put("/faculty/loads/{$section->id}", ['faculty_id' => $professor->id, 'year_level' => 2, 'section' => 'BSIT-B'])->assertSessionHasNoErrors();
+        $this->assertSame('BSIT-2B', $section->fresh()->section_code);
+
         // The subject moves to the professor, who encodes and submits the grades.
         $this->actingAs($professor)->get('/dashboard')->assertOk()->assertSee('My classes this term');
         $this->actingAs($professor)->get('/faculty/classes')->assertOk()->assertSee($section->subject->code);
         $this->actingAs($professor)->get("/faculty/classes/{$section->id}")->assertOk();
         $this->actingAs($faculty)->get("/faculty/classes/{$section->id}")->assertForbidden();
         $this->actingAs($outsider)->get("/faculty/classes/{$section->id}")->assertForbidden();
+
+        // Faculty does not teach: it has no class list and cannot be chosen as the professor of a subject.
+        $this->actingAs($faculty)->get('/faculty/classes')->assertForbidden();
+        $this->actingAs($faculty)->put("/faculty/loads/{$section->id}", ['faculty_id' => $faculty->id])->assertSessionHasErrors('faculty_id');
 
         // Professors teach; they do not run the department's enrollment or loads.
         $this->actingAs($professor)->get('/faculty/loads')->assertForbidden();
@@ -199,12 +209,12 @@ class WorkflowTest extends SsisTestCase
 
     public function test_faculty_cannot_encode_when_the_period_is_closed(): void
     {
-        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $faculty = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
         $section = $this->makeSection($faculty, $this->makeStudent());
         $this->term->update(['encoding_open' => false]);
 
         $this->actingAs($faculty)->put("/faculty/classes/{$section->id}", [
-            'action' => 'save', 'grades' => [$section->enrollments->first()->id => ['midterm' => 2.00, 'final' => 2.00]],
+            'action' => 'save', 'grades' => [$section->enrollments->first()->id => ['prelim' => 2.00, 'midterm' => 2.00, 'final' => 2.00]],
         ])->assertSessionHasErrors('grades');
 
         $this->assertSame(0, Grade::count());
@@ -212,10 +222,10 @@ class WorkflowTest extends SsisTestCase
 
     public function test_returned_sheet_can_be_corrected_and_resubmitted(): void
     {
-        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $faculty = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
         $head = $this->makeUser('Department Head', ['department_id' => $this->ccs()]);
         $section = $this->makeSection($faculty, $this->makeStudent());
-        $grades = [$section->enrollments->first()->id => ['midterm' => 2.00, 'final' => 2.00]];
+        $grades = [$section->enrollments->first()->id => ['prelim' => 2.00, 'midterm' => 2.00, 'final' => 2.00]];
 
         $this->actingAs($faculty)->put("/faculty/classes/{$section->id}", ['action' => 'submit', 'grades' => $grades]);
         $this->actingAs($head)->put("/department/sheets/{$section->id}", ['action' => 'return'])->assertSessionHasErrors('remarks');
@@ -352,14 +362,15 @@ class WorkflowTest extends SsisTestCase
     public function test_every_role_can_open_its_own_pages(): void
     {
         $student = $this->makeStudent();
-        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $faculty = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
         $section = $this->makeSection($faculty, $student);
 
         $pages = [
-            [$student->user, ['/dashboard', '/student/grades', '/student/clearance', '/student/payments', '/student/requests', '/profile', '/notifications']],
+            [$student->user, ['/dashboard', '/student/grades', '/student/curriculum', '/student/clearance', '/student/payments', '/student/requests', '/profile', '/notifications']],
             [$this->makeUser('Registrar'), ['/dashboard', '/registrar/students', '/registrar/students/new', "/registrar/students/{$student->id}", '/registrar/terms', '/registrar/requests', '/clearance']],
             [$this->makeUser('Cashier'), ['/dashboard', '/cashier/payments', '/cashier/payments?q=Last', "/cashier/students/{$student->id}", '/cashier/proofs', '/cashier/report', '/cashier/report?export=csv', '/clearance']],
             [$faculty, ['/dashboard', '/faculty/classes', "/faculty/classes/{$section->id}"]],
+            [$this->makeUser('Faculty', ['department_id' => $this->ccs()]), ['/dashboard', '/faculty/loads', '/faculty/enrollment']],
             [$this->makeUser('Department Head', ['department_id' => $this->ccs()]), ['/dashboard', '/department/sheets', "/department/sheets/{$section->id}", '/clearance']],
             [$this->signatory('LIB'), ['/dashboard', '/clearance', '/clearance?status=Cleared&q=Last']],
             [$this->makeUser('Administrator'), ['/dashboard', '/admin/users', '/admin/users/new', "/admin/users/{$faculty->id}/edit", "/admin/users/{$student->user_id}/edit", '/admin/document-types', '/admin/audit-log']],
@@ -370,5 +381,36 @@ class WorkflowTest extends SsisTestCase
                 $this->actingAs($user)->get($url)->assertOk();
             }
         }
+    }
+
+    public function test_faculty_opens_sections_of_curriculum_subjects_for_available_professors(): void
+    {
+        $this->seed(\Database\Seeders\CurriculumSeeder::class);
+        $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $busy = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $networking = \App\Models\Subject::where('code', 'IT 314')->firstOrFail();   // third year, first semester
+        $capstone = \App\Models\Subject::where('code', 'IT 325')->firstOrFail();     // second semester: not offered now
+        $existing = \App\Models\ClassSection::create(['subject_id' => $networking->id, 'term_id' => $this->term->id, 'section_code' => 'BSIT-3A', 'faculty_id' => $busy->id]);
+
+        // The year level comes from the curriculum, each professor shows how many classes they hold, and sections read in full.
+        $this->actingAs($faculty)->get('/faculty/loads')->assertOk()
+            ->assertSee('3rd Year')->assertSee('BSIT 3A')->assertSee($busy->name.' · 1 class')->assertSee($professor->name.' · 0 classes')
+            ->assertSee('Open a section')->assertSee('Networking 2')->assertDontSee('Capstone Project 1');
+
+        // Another section of the same subject for the professor who is free.
+        $this->actingAs($faculty)->post('/faculty/loads', ['subject_id' => $networking->id, 'letter' => 'B', 'faculty_id' => $professor->id])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('class_sections', ['subject_id' => $networking->id, 'term_id' => $this->term->id, 'section_code' => 'BSIT-3B', 'faculty_id' => $professor->id, 'sheet_status' => 'Draft']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $professor->id, 'title' => 'Subject assigned to you']);
+        $this->actingAs($professor)->get('/faculty/classes')->assertOk()->assertSee('IT 314');
+
+        // The same section twice, a subject of the other semester, and a professor adding one are all refused.
+        $this->actingAs($faculty)->post('/faculty/loads', ['subject_id' => $networking->id, 'letter' => 'B', 'faculty_id' => $busy->id])->assertSessionHasErrors('letter');
+        $this->actingAs($faculty)->post('/faculty/loads', ['subject_id' => $capstone->id, 'letter' => 'A', 'faculty_id' => $professor->id])->assertSessionHasErrors('subject_id');
+        $this->actingAs($professor)->post('/faculty/loads', ['subject_id' => $networking->id, 'letter' => 'C', 'faculty_id' => $professor->id])->assertForbidden();
+
+        // Moving a class to another section keeps the curriculum year, whatever year is sent.
+        $this->actingAs($faculty)->put("/faculty/loads/{$existing->id}", ['faculty_id' => $busy->id, 'section' => 'BSIT-C', 'year_level' => 1])->assertSessionHasNoErrors();
+        $this->assertSame('BSIT-3C', $existing->fresh()->section_code);
     }
 }

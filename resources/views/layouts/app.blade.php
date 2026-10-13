@@ -16,7 +16,7 @@
         ->map(fn ($group, $key) => [$group['label'], 'admin.users', $group['icon'], null, ['group' => $key]])->values()->all();
     $menus = [
         'Student' => ['Student Portal', [
-            ['Overview', 'dashboard', 'grid'], ['Clearance', 'student.clearance', 'clipboard'], ['Enrollment', 'student.queue', 'list'], ['Grades', 'student.grades', 'book-open'],
+            ['Overview', 'dashboard', 'grid'], ['Clearance', 'student.clearance', 'clipboard'], ['Enrollment', 'student.queue', 'list'], ['Grades', 'student.grades', 'book-open'], ['Curriculum', 'student.curriculum', 'graduation'],
             ['Document requests', 'student.requests', 'file'],
             ['Payments', 'student.payments', 'wallet', $student ? \App\Services\LedgerService::payables($student)->where('payable', '>', 0)->count() : 0],
         ]],
@@ -31,7 +31,7 @@
             ['Verify payments', 'cashier.proofs', 'receipt', \App\Models\Payment::where('status', 'For Verification')->count()],
             ['Clearance', 'clearance.index', 'clipboard'], ['Collection report', 'cashier.report', 'chart'],
         ]],
-        'Faculty' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open'], ['Subject loads', 'faculty.loads', 'users'], ['Enrollment', 'faculty.enrollment', 'list']]],
+        'Faculty' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['Subject loads', 'faculty.loads', 'users'], ['Enrollment', 'faculty.enrollment', 'list']]],
         'Professor' => ['Department Module', [['Overview', 'dashboard', 'grid'], ['My classes', 'faculty.classes', 'book-open']]],
         'Department Head' => ['Department Module', [
             ['Overview', 'dashboard', 'grid'], ['Grade sheets', 'head.sheets', 'book-open'], ['Clearance', 'clearance.index', 'clipboard'],

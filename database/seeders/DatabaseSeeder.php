@@ -26,7 +26,7 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     /** Every demo account uses this password. Change it before real use. */
-    public const DEMO_PASSWORD = 'Password123';
+    public const DEMO_PASSWORD = 'password123';
 
     public function run(): void
     {
@@ -55,9 +55,9 @@ class DatabaseSeeder extends Seeder
         $sao = $staff('sao', 'Teresa Navarro', 'Signatory', ['office_id' => $office['SAO']]);
 
         $students = collect([
-            ['student', '2026-00123', 'Dela Cruz', 'Juan', 'Santos', 'M'],
-            ['student2', '2026-00124', 'Santos', 'Maria', 'Lopez', 'F'],
-            ['student3', '2026-00125', 'Reyes', 'Jose', 'Bautista', 'M'],
+            ['2026-00123', '2026-00123', 'Dela Cruz', 'Juan', 'Santos', 'M'],
+            ['2026-00124', '2026-00124', 'Santos', 'Maria', 'Lopez', 'F'],
+            ['2026-00125', '2026-00125', 'Reyes', 'Jose', 'Bautista', 'M'],
         ])->map(function ($row) use ($role, $bsit) {
             [$username, $no, $last, $first, $middle, $sex] = $row;
             $user = User::create([
@@ -73,11 +73,13 @@ class DatabaseSeeder extends Seeder
         [$juan, $maria, $jose] = $students->all();
 
         $past = AcademicTerm::create(['school_year' => '2025-2026', 'semester' => '2nd', 'grades_released' => true]);
-        $current = AcademicTerm::create(['school_year' => '2026-2027', 'semester' => '1st', 'is_active' => true, 'encoding_open' => true]);
+        $current = AcademicTerm::create(['school_year' => '2026-2027', 'semester' => '1st', 'is_active' => true, 'encoding_open' => true, 'enrollment_open' => true]);
 
-        $subject = fn (string $code, string $title) => Subject::create(['department_id' => $ccs->id, 'code' => $code, 'title' => $title, 'units' => 3]);
+        // The curriculum already holds these subjects; the demo classes below are offerings of them.
+        $this->call(CurriculumSeeder::class);
+        $subject = fn (string $code, string $title) => Subject::firstOrCreate(['code' => $code], ['department_id' => $ccs->id, 'title' => $title, 'units' => 3]);
         $section = fn (Subject $s, AcademicTerm $t, string $status = 'Draft', ?User $teacher = null) => ClassSection::create([
-            'subject_id' => $s->id, 'term_id' => $t->id, 'section_code' => 'BSIT-3A', 'faculty_id' => ($teacher ?? $faculty)->id,
+            'subject_id' => $s->id, 'term_id' => $t->id, 'section_code' => 'BSIT-3A', 'faculty_id' => ($teacher ?? $santos)->id,
             'sheet_status' => $status,
             'approved_by' => $status === 'Approved' ? $head->id : null,
             'approved_at' => $status === 'Approved' ? now()->subMonths(4) : null,
@@ -86,10 +88,10 @@ class DatabaseSeeder extends Seeder
             foreach ($students as $i => $student) {
                 $enrollment = Enrollment::create(['student_id' => $student->id, 'section_id' => $sec->id]);
                 if (isset($grades[$i])) {
-                    [$midterm, $final] = $grades[$i];
-                    $rating = GradeService::finalRating($midterm, $final);
+                    [$prelim, $midterm, $final] = $grades[$i];
+                    $rating = GradeService::finalRating($prelim, $midterm, $final);
                     Grade::create([
-                        'enrollment_id' => $enrollment->id, 'midterm_grade' => $midterm, 'final_grade' => $final,
+                        'enrollment_id' => $enrollment->id, 'prelim_grade' => $prelim, 'midterm_grade' => $midterm, 'final_grade' => $final,
                         'final_rating' => $rating, 'remarks' => GradeService::remarks($rating), 'encoded_by' => $sec->faculty_id,
                     ]);
                 }
@@ -97,16 +99,23 @@ class DatabaseSeeder extends Seeder
         };
 
         // Last term: approved and released, so students already have grades to view.
-        $enroll($section($subject('IT 221', 'Data Structures and Algorithms'), $past, 'Approved'), [[1.75, 1.50], [1.25, 1.25], [2.50, 3.00]]);
-        $enroll($section($subject('IT 222', 'Database Management Systems'), $past, 'Approved'), [[2.00, 1.75], [1.50, 1.25], [3.00, 2.75]]);
+        $enroll($section($subject('IT 221', 'Data Structures and Algorithms'), $past, 'Approved'), [[2.00, 1.75, 1.50], [1.25, 1.25, 1.25], [2.75, 2.50, 3.00]]);
+        $enroll($section($subject('IT 222', 'Database Management Systems'), $past, 'Approved'), [[2.00, 2.00, 1.75], [1.50, 1.50, 1.25], [3.00, 3.00, 2.75]]);
 
-        // This term: one sheet waiting for the Department Head, one half-encoded draft, two empty.
-        $enroll($section($subject('IT 311', 'Systems Analysis and Design'), $current, 'Submitted', $santos), [[2.00, 1.50], [1.25, 1.50], [2.75, 2.50]]);
-        $enroll($section($subject('IT 312', 'Information Assurance and Security'), $current, 'Draft', $santos), [[1.75, null], [1.50, null]]);
+        // This term: one sheet waiting for the Department Head, one draft with prelim and midterm only, two empty.
+        $enroll($section($subject('IT 311', 'Systems Analysis and Design'), $current, 'Submitted', $santos), [[1.75, 2.00, 1.50], [1.25, 1.25, 1.50], [2.50, 2.75, 2.50]]);
+        $enroll($section($subject('IT 312', 'Information Assurance and Security'), $current, 'Draft', $santos), [[1.75, 1.75, null], [1.50, 1.50, null]]);
         $enroll($section($subject('IT 313', 'Web Systems and Technologies'), $current, 'Draft', $reyes));
         $enroll($section($subject('GE 105', 'Ethics'), $current, 'Draft', $reyes));
 
-        // Juan and Maria are regular students of block BSIT-3A; Jose is irregular and lines up within the approved slots.
+        // Ten more professors and fifty more BSIT students, then released grades for every earlier semester.
+        $this->call(BulkDemoSeeder::class);
+        $this->call(GradeHistorySeeder::class);
+
+        // Enrollment is open in the demo, so every subject of this semester is already offered for each block section.
+        \App\Services\EnrollmentService::offerCurriculum($current);
+
+        // Juan and Maria are regular students of block BSIT-3A; Jose is irregular: Faculty opens his subjects one by one, within the approved slots.
         $juan->update(['block_section' => 'BSIT-3A']);
         $maria->update(['block_section' => 'BSIT-3A']);
         $jose->update(['student_type' => 'Irregular']);
@@ -114,7 +123,7 @@ class DatabaseSeeder extends Seeder
             'term_id' => $current->id, 'department_id' => $ccs->id, 'category' => 'Irregular', 'slots' => 20,
             'status' => 'Approved', 'requested_by' => $faculty->id, 'decided_by' => $registrar->id, 'decided_at' => now()->subDay(),
         ]);
-        SlotRequest::create(['term_id' => $current->id, 'department_id' => $ccs->id, 'category' => 'First Year', 'slots' => 40, 'requested_by' => $faculty->id]);
+        SlotRequest::create(['term_id' => $current->id, 'department_id' => $ccs->id, 'category' => 'Irregular', 'slots' => 10, 'requested_by' => $faculty->id]);
 
         $charges = [];
         foreach ($students as $student) {

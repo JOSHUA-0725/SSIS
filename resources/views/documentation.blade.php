@@ -23,7 +23,7 @@
                     <tr><td>Document Request System</td><td>Students, Cashier, Registrar</td><td>Online filing, payment, status tracking, claim stub or certified e-copy</td></tr>
                     <tr><td>Registrar Module</td><td>Registrar</td><td>Student records, enrollment, terms and grade release, request processing, final clearance</td></tr>
                     <tr><td>Cashier Module</td><td>Cashier</td><td>Charges, payment posting, proof verification, ledger, collection report</td></tr>
-                    <tr><td>Department Module</td><td>Faculty, Department Heads, clearance offices</td><td>Grade encoding and approval, office clearance</td></tr>
+                    <tr><td>Department Module</td><td>Professors, Faculty, Department Heads, clearance offices</td><td>Grade encoding by professors, subject loads and enrollment by faculty, grade sheet approval, office clearance</td></tr>
                     <tr><td>Admin Module</td><td>Administrator</td><td>Users and roles, document types and fees, audit log</td></tr>
                 </tbody>
             </table></div></div>
@@ -51,7 +51,7 @@
             <div class="panel">
                 <p><strong>Enrollment clearance.</strong> When a term opens, the system creates one clearance per enrolled student with an item for each office. The Library, Laboratory, Student Affairs, Department, and Cashier sign in parallel. The Cashier item clears by itself when school fees reach zero. The Registrar gives the final clearance only after every other office has cleared, and a withdrawn sign-off withdraws the final clearance too.</p>
                 <p><strong>Document request.</strong> A student files a request and the system computes the fee. The request moves through Requested, Paid, Processing, and Ready, then Released. The Registrar cannot start processing until the payment is verified.</p>
-                <p class="mb-0"><strong>Grades.</strong> Faculty encode midterm and final grades while the encoding period is open and submit the sheet. The Department Head approves or returns it. Approved sheets are locked. Students see grades only after the Registrar releases the term.</p>
+                <p class="mb-0"><strong>Grades.</strong> Professors encode prelim, midterm, and final grades while the encoding period is open and submit the sheet. The Department Head approves or returns it. Approved sheets are locked. Students see grades only after the Registrar releases the term.</p>
             </div>
         </section>
 

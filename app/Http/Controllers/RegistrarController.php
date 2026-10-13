@@ -155,20 +155,33 @@ class RegistrarController extends Controller
     public function updateTerm(Request $request, AcademicTerm $term)
     {
         $data = $request->validate([
-            'action' => ['required', Rule::in(['activate', 'open_encoding', 'close_encoding', 'release', 'unrelease'])],
+            'action' => ['required', Rule::in(['activate', 'open_enrollment', 'close_enrollment', 'open_encoding', 'close_encoding', 'release', 'unrelease'])],
         ]);
 
-        $old = $term->only(['is_active', 'encoding_open', 'grades_released']);
+        $old = $term->only(['is_active', 'enrollment_open', 'encoding_open', 'grades_released']);
 
         DB::transaction(function () use ($term, $data) {
             match ($data['action']) {
                 'activate' => [AcademicTerm::where('id', '!=', $term->id)->update(['is_active' => false]), $term->update(['is_active' => true])],
+                'open_enrollment' => $term->update(['enrollment_open' => true]),
+                'close_enrollment' => $term->update(['enrollment_open' => false]),
                 'open_encoding' => $term->update(['encoding_open' => true]),
                 'close_encoding' => $term->update(['encoding_open' => false]),
                 'release' => $term->update(['grades_released' => true, 'encoding_open' => false]),
                 'unrelease' => $term->update(['grades_released' => false]),
             };
         });
+
+        $offered = 0;
+        if ($data['action'] === 'open_enrollment') {
+            // Every subject of this semester is offered right away; Faculty assigns the professors afterwards.
+            $offered = EnrollmentService::offerCurriculum($term);
+            // Regular students are told they can enroll now; irregular students wait for their department.
+            $userIds = Student::where('student_type', 'Regular')->whereNotIn('status', ['Graduated', 'Dropped'])->pluck('user_id');
+            foreach ($userIds as $userId) {
+                Notification::notify($userId, 'Enrollment is open', "Enrollment for {$term->label} is open. Open Enrollment to take the subjects of your year level.");
+            }
+        }
 
         if ($data['action'] === 'release') {
             $userIds = Student::whereIn('id', Enrollment::whereHas('section', fn ($q) => $q->where('term_id', $term->id))->select('student_id'))->pluck('user_id');
@@ -179,7 +192,9 @@ class RegistrarController extends Controller
 
         AuditLog::record('UPDATE', 'academic_terms', $term->id, $old, $term->only(array_keys($old)));
 
-        return back()->with('status', 'Term updated.');
+        return back()->with('status', $data['action'] === 'open_enrollment'
+            ? 'Enrollment is open.'.($offered ? " {$offered} ".($offered === 1 ? 'class was' : 'classes were').' offered from the curriculum; Faculty can now assign their professors.' : '')
+            : 'Term updated.');
     }
 
     // ----- Enrollment slots asked for by the departments -----
