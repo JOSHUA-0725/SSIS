@@ -11,8 +11,10 @@ use App\Models\DocumentRequest;
 use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\QueueTicket;
+use App\Models\SlotRequest;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\EnrollmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -72,7 +74,13 @@ class AccountController extends Controller
                 ['Proofs to verify', Payment::where('status', 'For Verification')->count(), route('cashier.proofs')],
                 ['Unpaid document requests', DocumentRequest::where('status', 'Pending Payment')->count(), route('cashier.payments')],
             ],
-            'Faculty', 'Professor' => [
+            'Faculty' => [
+                ['Classes this term', ClassSection::where('term_id', $termId)->whereHas('subject', fn ($q) => $q->where('department_id', $user->department_id))->count(), route('faculty.loads')],
+                ['Classes without a professor', ClassSection::where('term_id', $termId)->whereNull('faculty_id')->whereHas('subject', fn ($q) => $q->where('department_id', $user->department_id))->count(), route('faculty.loads')],
+                ['Slot requests waiting', SlotRequest::where('term_id', $termId)->where('department_id', $user->department_id)->where('status', 'Pending')->count(), route('faculty.enrollment')],
+                ['Irregular students with subjects opened', EnrollmentService::used((int) $termId, (int) $user->department_id), route('faculty.enrollment')],
+            ],
+            'Professor' => [
                 ['My classes this term', ClassSection::where('faculty_id', $user->id)->where('term_id', $termId)->count(), route('faculty.classes')],
                 ['Sheets returned to me', ClassSection::where('faculty_id', $user->id)->where('sheet_status', 'Returned')->count(), route('faculty.classes')],
                 ['Encoding period', $term?->encoding_open ? 'Open' : 'Closed', route('faculty.classes')],

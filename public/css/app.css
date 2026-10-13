@@ -2427,3 +2427,7 @@ a.card:hover::before {
         box-shadow: none;
     }
 }
+
+/* Subject loads: keep the choices wide enough to read the whole name. */
+.load-select { min-width: 12.5rem; }
+.load-select-sm { min-width: 7.5rem; }

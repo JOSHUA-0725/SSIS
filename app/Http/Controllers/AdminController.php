@@ -114,7 +114,7 @@ class AdminController extends Controller
     public function resetPassword(User $user)
     {
         $password = Str::password(10, symbols: false);
-        $user->forceFill(['password' => $password, 'failed_attempts' => 0, 'locked_until' => null])->save();
+        $user->forceFill(['password' => $password, 'failed_attempts' => 0, 'lockout_count' => 0, 'locked_until' => null])->save();
         AuditLog::record('PASSWORD_RESET', 'users', $user->id);
 
         return back()->with('status', "Password of {$user->username} reset. Temporary password: {$password} (shown once).");

@@ -31,14 +31,14 @@
             <div class="table-responsive">
                 <table class="table mb-0 align-middle">
                     <thead>
-                        <tr><th scope="col">Student no.</th><th scope="col">Name</th><th scope="col">Midterm</th><th scope="col">Final</th><th scope="col" class="text-end">Rating</th><th scope="col">Remarks</th></tr>
+                        <tr><th scope="col">Student no.</th><th scope="col">Name</th><th scope="col">Prelim</th><th scope="col">Midterm</th><th scope="col">Final</th><th scope="col" class="text-end">Rating</th><th scope="col">Remarks</th></tr>
                     </thead>
                     <tbody>
                         @forelse ($enrollments as $enrollment)
                             <tr>
                                 <td>{{ $enrollment->student->student_no }}</td>
                                 <td>{{ $enrollment->student->full_name }}</td>
-                                @foreach (['midterm' => 'midterm_grade', 'final' => 'final_grade'] as $field => $column)
+                                @foreach (['prelim' => 'prelim_grade', 'midterm' => 'midterm_grade', 'final' => 'final_grade'] as $field => $column)
                                     <td>
                                         <label class="visually-hidden" for="{{ $field }}_{{ $enrollment->id }}">{{ ucfirst($field) }} grade of {{ $enrollment->student->student_no }}</label>
                                         <input type="number" class="form-control grade-input" id="{{ $field }}_{{ $enrollment->id }}"
@@ -51,14 +51,14 @@
                                 <td>@if ($enrollment->grade?->remarks) @include('partials.status', ['status' => $enrollment->grade->remarks]) @endif</td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-secondary">No students are enrolled in this section.</td></tr>
+                            <tr><td colspan="7" class="text-secondary">No students are enrolled in this section.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <p class="form-text">Grades accept 1.00 to 5.00 only. The rating is computed when you save. The sheet locks after the Department Head approves it.</p>
+        <p class="form-text">Grades accept 1.00 to 5.00 only. The rating is the average of the prelim, midterm, and final grades, computed when you save. The sheet locks after the Department Head approves it.</p>
 
         @if ($editable && $enrollments->isNotEmpty())
             <div class="d-flex gap-2">

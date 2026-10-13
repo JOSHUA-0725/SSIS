@@ -7,15 +7,17 @@ use PHPUnit\Framework\TestCase;
 
 class GradeServiceTest extends TestCase
 {
-    public function test_final_rating_is_the_average_of_midterm_and_final(): void
+    public function test_final_rating_is_the_average_of_prelim_midterm_and_final(): void
     {
-        $this->assertSame(1.75, GradeService::finalRating(2.00, 1.50));
+        $this->assertSame(1.75, GradeService::finalRating(1.75, 2.00, 1.50));
+        $this->assertSame(1.42, GradeService::finalRating(1.25, 1.50, 1.50));
     }
 
-    public function test_final_rating_is_null_until_both_grades_exist(): void
+    public function test_final_rating_is_null_until_all_three_grades_exist(): void
     {
-        $this->assertNull(GradeService::finalRating(2.00, null));
-        $this->assertNull(GradeService::finalRating(null, 1.50));
+        $this->assertNull(GradeService::finalRating(2.00, 2.00, null));
+        $this->assertNull(GradeService::finalRating(2.00, null, 1.50));
+        $this->assertNull(GradeService::finalRating(null, 2.00, 1.50));
     }
 
     public function test_rating_of_three_is_passed(): void

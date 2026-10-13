@@ -17,7 +17,7 @@ Route::get('/documentation', [AuthController::class, 'documentation'])->name('do
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::get('/login/{portal}', [AuthController::class, 'showPortal'])->whereIn('portal', array_keys(AuthController::PORTALS))->name('login.portal');
-    Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('login.attempt');
     Route::get('/forgot-password', [AuthController::class, 'showForgot'])->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'forgot'])->middleware('throttle:5,1')->name('password.send');
 });
@@ -35,12 +35,13 @@ Route::middleware('auth')->group(function () {
     // Student Portal and Document Request System
     Route::middleware('role:Student')->prefix('student')->name('student.')->group(function () {
         Route::get('/grades', [StudentPortalController::class, 'grades'])->name('grades');
+        Route::get('/curriculum', [StudentPortalController::class, 'curriculum'])->name('curriculum');
         Route::get('/clearance', [StudentPortalController::class, 'clearance'])->name('clearance');
         Route::get('/clearance/slip', [StudentPortalController::class, 'clearanceSlip'])->name('clearance.slip');
         Route::get('/queue', [StudentPortalController::class, 'queue'])->name('queue');
         Route::post('/queue', [StudentPortalController::class, 'joinQueue'])->name('queue.join');
         Route::post('/queue/leave', [StudentPortalController::class, 'leaveQueue'])->name('queue.leave');
-        Route::post('/enroll', [StudentPortalController::class, 'enrollBlock'])->name('enroll');
+        Route::post('/enroll', [StudentPortalController::class, 'enroll'])->name('enroll');
         Route::get('/payments', [StudentPortalController::class, 'payments'])->name('payments');
         Route::get('/payments/slip', [StudentPortalController::class, 'cashSlip'])->name('payments.slip');
         Route::get('/requests', [StudentPortalController::class, 'requests'])->name('requests');
@@ -88,17 +89,19 @@ Route::middleware('auth')->group(function () {
     });
 
     // Department Module
-    // Whoever teaches a class section encodes its grades: a professor, or a faculty member who also teaches.
-    Route::middleware('role:Faculty,Professor')->prefix('faculty')->name('faculty.')->group(function () {
+    // Professors handle the class sections and encode the grades of their own students.
+    Route::middleware('role:Professor')->prefix('faculty')->name('faculty.')->group(function () {
         Route::get('/classes', [DepartmentController::class, 'classes'])->name('classes');
         Route::get('/classes/{section}', [DepartmentController::class, 'encode'])->name('encode');
         Route::put('/classes/{section}', [DepartmentController::class, 'saveGrades'])->name('encode.save');
     });
+    // Faculty runs the department's enrollment and chooses the professor of each subject; it does not encode grades.
     Route::middleware('role:Faculty')->prefix('faculty')->name('faculty.')->group(function () {
         Route::get('/loads', [DepartmentController::class, 'loads'])->name('loads');
+        Route::post('/loads', [DepartmentController::class, 'storeLoad'])->name('loads.store');
         Route::put('/loads/{section}', [DepartmentController::class, 'assignLoad'])->name('loads.assign');
         Route::get('/enrollment', [DepartmentController::class, 'enrollment'])->name('enrollment');
-        Route::put('/enrollment/block', [DepartmentController::class, 'setBlockEnrollment'])->name('enrollment.block');
+        Route::put('/enrollment/students/{student}', [DepartmentController::class, 'adviseStudent'])->name('enrollment.advise');
         Route::post('/enrollment/slots', [DepartmentController::class, 'requestSlots'])->name('enrollment.slots');
     });
     Route::middleware('role:Department Head')->prefix('department')->name('head.')->group(function () {

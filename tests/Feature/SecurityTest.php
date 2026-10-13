@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Security tests for the three vulnerabilities in the project paper:
  * SEC-01 SQL injection, SEC-02 stored XSS, SEC-03 broken access control.
+ * SEC-04 covers brute force on the sign-in form: longer locks, lock alerts, and a per-device limit.
  */
 class SecurityTest extends SsisTestCase
 {
@@ -134,12 +135,94 @@ class SecurityTest extends SsisTestCase
 
     public function test_faculty_cannot_open_another_faculty_members_grade_sheet(): void
     {
-        $owner = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
-        $other = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $owner = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $other = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
         $section = $this->makeSection($owner, $this->makeStudent());
 
         $this->actingAs($other)->get("/faculty/classes/{$section->id}")->assertForbidden();
         $this->actingAs($other)->put("/faculty/classes/{$section->id}", ['action' => 'save', 'grades' => []])->assertForbidden();
+    }
+
+    // ----- SEC-04 brute force on the sign-in form -----
+
+    public function test_each_new_lock_lasts_longer_than_the_last(): void
+    {
+        $user = $this->makeUser('Cashier');
+        $fail = function () use ($user) {
+            for ($i = 0; $i < 5; $i++) {
+                $this->post('/login', ['username' => $user->username, 'password' => 'wrong']);
+            }
+        };
+
+        $fail();
+        $this->assertEqualsWithDelta(15, now()->diffInMinutes($user->fresh()->locked_until), 0.1);
+
+        $this->travel(16)->minutes();
+        $fail();
+        $this->assertEqualsWithDelta(30, now()->diffInMinutes($user->fresh()->locked_until), 0.1);
+
+        $this->travel(31)->minutes();
+        $fail();
+        $this->assertEqualsWithDelta(60, now()->diffInMinutes($user->fresh()->locked_until), 0.1);
+
+        // A correct sign-in after the lock ends starts the count again.
+        $this->travel(61)->minutes();
+        $this->post('/login', ['username' => $user->username, 'password' => self::PASSWORD])->assertRedirect('/dashboard');
+        $this->assertSame(0, $user->fresh()->lockout_count);
+    }
+
+    public function test_owner_and_administrators_are_alerted_when_an_account_is_locked(): void
+    {
+        $admin = $this->makeUser('Administrator');
+        $user = $this->makeUser('Registrar');
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', ['username' => $user->username, 'password' => 'wrong']);
+        }
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'ACCOUNT_LOCKED', 'record_id' => $user->id]);
+        $this->assertDatabaseHas('notifications', ['user_id' => $user->id, 'title' => 'Your account was locked']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $admin->id, 'title' => 'Account locked']);
+    }
+
+    public function test_one_device_cannot_keep_trying_different_usernames(): void
+    {
+        $user = $this->makeUser('Cashier');
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->post('/login', ['username' => "guess{$i}", 'password' => 'Password123']);
+        }
+
+        // The eleventh attempt in the same minute is refused, even with the right password.
+        $this->post('/login', ['username' => $user->username, 'password' => self::PASSWORD])
+            ->assertSessionHasErrors(['username' => 'Too many sign-in attempts from this device. Wait one minute, then try again.']);
+        $this->assertGuest();
+        $this->assertDatabaseHas('audit_logs', ['action' => 'LOGIN_THROTTLED']);
+
+        $this->travel(61)->seconds();
+        $this->post('/login', ['username' => $user->username, 'password' => self::PASSWORD])->assertRedirect('/dashboard');
+    }
+    public function test_sign_in_page_shows_the_time_left_when_locked_or_limited(): void
+    {
+        $user = $this->makeUser('Cashier');
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/login', ['username' => $user->username, 'password' => 'wrong', 'portal' => 'cashier']);
+        }
+        // The fifth wrong password locks the account and says for how long.
+        $this->from('/login/cashier')->post('/login', ['username' => $user->username, 'password' => 'wrong', 'portal' => 'cashier'])
+            ->assertSessionHas('retry_seconds', 900);
+        $this->followingRedirects()->from('/login/cashier')->post('/login', ['username' => $user->username, 'password' => 'wrong', 'portal' => 'cashier'])
+            ->assertSee('You can try again in')->assertSee('data-retry-seconds', false);
+
+        // The per-device limit also says how long to wait.
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/login', ['username' => "guess{$i}", 'password' => 'x']);
+        }
+        $response = $this->post('/login', ['username' => 'guess', 'password' => 'x']);
+        $response->assertSessionHasErrors('username');
+        $this->assertGreaterThan(0, session('retry_seconds'));
+        $this->assertLessThanOrEqual(60, session('retry_seconds'));
     }
 
     // ----- Supporting control: file upload -----

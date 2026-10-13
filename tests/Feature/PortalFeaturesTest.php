@@ -148,72 +148,133 @@ class PortalFeaturesTest extends SsisTestCase
         $this->actingAs($this->makeUser('Cashier'))->get('/student/queue')->assertForbidden();
     }
 
-    public function test_faculty_asks_for_slots_and_the_registrar_approval_limits_the_queue(): void
+    public function test_faculty_opens_subjects_for_irregular_students_within_the_approved_slots(): void
     {
         $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
         $registrar = $this->makeUser('Registrar');
-        $freshmen = [$this->makeStudent(), $this->makeStudent()];
-        foreach ($freshmen as $student) {
-            $student->update(['year_level' => 1]);
-        }
+        $first = $this->makeIrregular();
+        $second = $this->makeIrregular();
+        $regular = $this->makeStudent();
+        $one = $this->makeSection($professor);
+        $two = $this->makeSection($professor);
+        $url = fn (Student $student) => "/faculty/enrollment/students/{$student->id}";
 
-        // Nothing is approved yet, so no first-year student can line up.
-        $this->actingAs($freshmen[0]->user)->post('/student/queue')->assertSessionHasErrors('queue');
+        // Faculty finds a student by student ID.
+        $this->actingAs($faculty)->get('/faculty/enrollment?student_no='.$first->student_no)->assertOk()
+            ->assertSee($first->full_name)->assertSee($one->subject->code)->assertSee('Save subjects for this student');
+        $this->actingAs($faculty)->get('/faculty/enrollment?student_no='.$regular->student_no)->assertOk()->assertSee('is a regular student');
+        $this->actingAs($faculty)->get('/faculty/enrollment?student_no=0000-00000')->assertOk()->assertSee('No student of CCS has the ID');
 
-        $this->actingAs($faculty)->get('/faculty/enrollment')->assertOk()->assertSee('Ask the Registrar for slots');
-        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'First Year', 'slots' => 1])->assertSessionHasNoErrors();
-        // One request per kind of student waits at a time.
-        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'First Year', 'slots' => 5])->assertSessionHasErrors('slots');
+        // No slot is approved yet, so no subject can be opened.
+        $this->actingAs($faculty)->put($url($first), ['sections' => [$one->id]])->assertSessionHasErrors('sections');
+        $this->actingAs($first->user)->post('/student/enroll')->assertSessionHasErrors('queue');
+
+        // Faculty asks only for irregular slots, one request at a time.
+        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'First Year', 'slots' => 5])->assertSessionHasErrors('category');
+        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'Irregular', 'slots' => 1])->assertSessionHasNoErrors();
+        $this->actingAs($faculty)->post('/faculty/enrollment/slots', ['category' => 'Irregular', 'slots' => 5])->assertSessionHasErrors('slots');
         $slotRequest = SlotRequest::sole();
         $this->assertDatabaseHas('notifications', ['user_id' => $registrar->id, 'title' => 'Enrollment slots requested']);
 
         // A pending request opens no slots.
-        $this->actingAs($freshmen[0]->user)->post('/student/queue')->assertSessionHasErrors('queue');
+        $this->actingAs($faculty)->put($url($first), ['sections' => [$one->id]])->assertSessionHasErrors('sections');
 
-        $this->actingAs($registrar)->get('/registrar/slot-requests')->assertOk()->assertSee('First Year');
+        $this->actingAs($registrar)->get('/registrar/slot-requests')->assertOk()->assertSee('Irregular');
         $this->actingAs($registrar)->put("/registrar/slot-requests/{$slotRequest->id}", ['status' => 'Approved'])->assertSessionHasNoErrors();
-        $this->assertSame('Approved', $slotRequest->fresh()->status);
         $this->assertDatabaseHas('notifications', ['user_id' => $faculty->id, 'title' => 'Slot request Approved']);
         $this->actingAs($registrar)->put("/registrar/slot-requests/{$slotRequest->id}", ['status' => 'Rejected'])->assertSessionHasErrors('status');
 
-        // One slot: the first student gets it, the second is turned away.
-        $this->actingAs($freshmen[0]->user)->post('/student/queue')->assertRedirect('/student/queue');
-        $this->actingAs($freshmen[1]->user)->post('/student/queue')->assertSessionHasErrors('queue');
-        $this->assertSame(1, QueueTicket::count());
+        // One slot: the first student gets subjects opened, the second is turned away.
+        $this->actingAs($faculty)->put($url($first), ['sections' => [$one->id, $two->id]])->assertSessionHasNoErrors();
+        $this->assertSame(2, \App\Models\AdvisedSubject::where('student_id', $first->id)->count());
+        $this->assertDatabaseHas('notifications', ['user_id' => $first->user_id, 'title' => 'Subjects opened for you']);
+        $this->actingAs($faculty)->put($url($second), ['sections' => [$one->id]])->assertSessionHasErrors('sections');
+        $this->actingAs($faculty)->get('/faculty/enrollment')->assertOk()->assertSee($first->student_no)->assertDontSee($second->student_no);
 
-        $this->actingAs($freshmen[0]->user)->get('/faculty/enrollment')->assertForbidden();
+        // Regular students are never handled here, and only Faculty may open subjects.
+        $this->actingAs($faculty)->put($url($regular), ['sections' => [$one->id]])->assertSessionHasErrors('sections');
+        $this->actingAs($professor)->put($url($first), ['sections' => [$one->id]])->assertForbidden();
+        $this->actingAs($first->user)->get('/faculty/enrollment')->assertForbidden();
         $this->actingAs($faculty)->get('/registrar/slot-requests')->assertForbidden();
+
+        // The student enrolls in exactly the subjects that were opened, even while enrollment of regular students is closed.
+        $this->assertFalse($this->term->fresh()->enrollment_open);
+        $this->actingAs($first->user)->get('/student/queue')->assertOk()->assertSee('Subjects opened for you')->assertSee($one->subject->code)->assertSee('Enroll in these subjects');
+        $this->actingAs($first->user)->post('/student/enroll')->assertRedirect('/student/queue')->assertSessionHas('status');
+        $this->assertSame(2, Enrollment::where('student_id', $first->id)->count());
+        $this->assertSame('Enrolled', $first->fresh()->status);
+        $this->actingAs($first->user)->get('/student/queue')->assertOk()->assertSee('You are enrolled in every subject opened for you');
+        $this->actingAs($second->user)->post('/student/enroll')->assertSessionHasErrors('queue');
+
+        // A subject the student already enrolled in stays open when Faculty unticks it.
+        $this->actingAs($faculty)->put($url($first), ['sections' => []])->assertSessionHasNoErrors();
+        $this->assertSame(2, \App\Models\AdvisedSubject::where('student_id', $first->id)->count());
     }
 
-    public function test_regular_students_enroll_by_block_once_the_faculty_opens_enrollment(): void
+    public function test_regular_students_enroll_in_the_subjects_of_their_year_once_the_registrar_opens_enrollment(): void
     {
+        $this->seed(\Database\Seeders\CurriculumSeeder::class);
+        $registrar = $this->makeUser('Registrar');
         $faculty = $this->makeUser('Faculty', ['department_id' => $this->ccs()]);
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $class = fn (string $code, string $section) => \App\Models\ClassSection::create([
+            'subject_id' => \App\Models\Subject::where('code', $code)->value('id'), 'term_id' => $this->term->id,
+            'section_code' => $section, 'faculty_id' => $professor->id,
+        ]);
+        // Third year, first semester: IT 311 has one section, IT 312 has two, the other four are not offered yet.
+        $class('IT 311', 'BSIT-3A');
+        $class('IT 312', 'BSIT-3A');
+        $blockB = $class('IT 312', 'BSIT-3B');
+        $class('IT 111', 'BSIT-1A');
+
         $student = $this->makeStudent();
-        $student->update(['block_section' => 'BSIT-3A']);
-        $this->makeSection($faculty);
-        $this->makeSection($faculty);
+        $student->update(['block_section' => 'BSIT-3B']);
 
-        // Regular students do not use the queue.
+        // Regular students do not use the queue, and cannot enroll before the Registrar opens enrollment.
         $this->actingAs($student->user)->post('/student/queue')->assertSessionHasErrors('queue');
-
-        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('has not opened enrollment yet');
+        $this->actingAs($student->user)->get('/student/queue')->assertOk()
+            ->assertSee('The Registrar has not opened enrollment yet')->assertSee('Systems Analysis and Design')->assertSee('Not offered yet this term');
         $this->actingAs($student->user)->post('/student/enroll')->assertSessionHasErrors('queue');
         $this->assertSame(0, Enrollment::count());
 
-        $this->actingAs($faculty)->put('/faculty/enrollment/block', ['open' => 1])->assertSessionHasNoErrors();
-        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('Enroll in my block');
-        $this->actingAs($student->user)->post('/student/enroll')->assertRedirect('/student/queue')->assertSessionHas('status');
-        $this->assertSame(2, Enrollment::where('student_id', $student->id)->count());
-        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('You are enrolled in every subject of your block');
+        // Only the Registrar opens it; Faculty no longer does.
+        $this->actingAs($faculty)->put("/registrar/terms/{$this->term->id}", ['action' => 'open_enrollment'])->assertForbidden();
+        $this->actingAs($registrar)->put("/registrar/terms/{$this->term->id}", ['action' => 'open_enrollment'])->assertSessionHasNoErrors();
+        $this->assertTrue($this->term->fresh()->enrollment_open);
+        $this->assertDatabaseHas('notifications', ['user_id' => $student->user_id, 'title' => 'Enrollment is open']);
+        $this->actingAs($registrar)->get('/registrar/terms')->assertOk()->assertSee('Close enrollment');
 
-        // Closing enrollment stops the next regular student; an irregular one never enrolls by block.
-        $this->actingAs($faculty)->put('/faculty/enrollment/block', ['open' => 0])->assertSessionHasNoErrors();
-        $late = $this->makeStudent();
-        $late->update(['block_section' => 'BSIT-3A']);
-        $this->actingAs($late->user)->post('/student/enroll')->assertSessionHasErrors('queue');
-        $this->actingAs($faculty)->put('/faculty/enrollment/block', ['open' => 1]);
+        // Opening enrollment offers every third-year subject of this semester for the student's block, with no professor yet.
+        $this->assertSame(6, \App\Models\ClassSection::where('term_id', $this->term->id)->where('section_code', 'BSIT-3B')->count());
+        $this->assertSame(5, \App\Models\ClassSection::where('section_code', 'BSIT-3B')->whereNull('faculty_id')->count());
+        $this->actingAs($faculty)->get('/faculty/loads')->assertOk()->assertSee('To be assigned');
+
+        // The student takes all six, in the section of their own block.
+        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('Enroll now')->assertSee('To be assigned')->assertDontSee('Not offered yet this term');
+        $this->actingAs($student->user)->post('/student/enroll')->assertRedirect('/student/queue')->assertSessionHas('status');
+        $this->assertSame(6, Enrollment::where('student_id', $student->id)->count());
+        $this->assertDatabaseHas('enrollments', ['student_id' => $student->id, 'section_id' => $blockB->id]);
+        $this->actingAs($student->user)->get('/student/queue')->assertOk()->assertSee('You are enrolled in every offered subject of your year level');
+
+        // A first-year regular student enrolls the same way and gets first-year subjects only.
+        $freshman = $this->makeStudent();
+        $freshman->update(['year_level' => 1]);
+        $this->actingAs($freshman->user)->post('/student/enroll')->assertRedirect('/student/queue');
+        $taken = Enrollment::with('section.subject')->where('student_id', $freshman->id)->get()->pluck('section.subject.code');
+        $this->assertCount(7, $taken);
+        $this->assertTrue($taken->contains('IT 111') && ! $taken->contains('IT 311'));
+
+        // An irregular student never enrolls this way, and closing enrollment stops the next regular student.
         $this->actingAs($this->makeIrregular()->user)->post('/student/enroll')->assertSessionHasErrors('queue');
-        $this->assertSame(2, Enrollment::count());
+        $this->actingAs($registrar)->put("/registrar/terms/{$this->term->id}", ['action' => 'close_enrollment'])->assertSessionHasNoErrors();
+        $this->actingAs($this->makeStudent()->user)->post('/student/enroll')->assertSessionHasErrors('queue');
+        $this->assertSame(13, Enrollment::count());
+
+        // Opening it again adds nothing twice.
+        $classes = \App\Models\ClassSection::count();
+        $this->actingAs($registrar)->put("/registrar/terms/{$this->term->id}", ['action' => 'open_enrollment']);
+        $this->assertSame($classes, \App\Models\ClassSection::count());
     }
 
     // ----- Payments already sent online -----
@@ -401,5 +462,83 @@ class PortalFeaturesTest extends SsisTestCase
     public function test_forgot_password_link_is_on_the_sign_in_page(): void
     {
         $this->get('/login/student')->assertOk()->assertSee('Forgot password?')->assertSee(route('password.request'));
+    }
+
+    public function test_student_sees_the_curriculum_from_first_to_fourth_year_with_what_was_taken(): void
+    {
+        $this->seed(\Database\Seeders\CurriculumSeeder::class);
+        $student = $this->makeStudent();
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $past = \App\Models\AcademicTerm::create(['school_year' => '2025-2026', 'semester' => '2nd', 'grades_released' => true]);
+        $class = fn (string $code, $term, string $status) => \App\Models\ClassSection::create([
+            'subject_id' => \App\Models\Subject::where('code', $code)->value('id'), 'term_id' => $term->id,
+            'section_code' => 'BSIT-1A', 'faculty_id' => $professor->id, 'sheet_status' => $status,
+        ]);
+
+        $done = \App\Models\Enrollment::create(['student_id' => $student->id, 'section_id' => $class('IT 111', $past, 'Approved')->id]);
+        \App\Models\Grade::create(['enrollment_id' => $done->id, 'midterm_grade' => 1.50, 'final_grade' => 1.50, 'final_rating' => 1.50, 'remarks' => 'Passed', 'encoded_by' => $professor->id]);
+        \App\Models\Enrollment::create(['student_id' => $student->id, 'section_id' => $class('IT 112', $this->term, 'Draft')->id]);
+
+        $this->actingAs($student->user)->get('/student/curriculum')->assertOk()
+            ->assertSeeInOrder(['First Year', 'Introduction to Computing', 'Second Year', 'Third Year', 'Fourth Year', 'Practicum'])
+            ->assertSeeInOrder(['Subjects passed', '1', 'of 42'])
+            ->assertSee('1.50')->assertSee('Enrolled')->assertSee('Not yet taken');
+        $this->actingAs($student->user)->get('/dashboard')->assertSee(route('student.curriculum'));
+
+        // Staff have no curriculum page of their own.
+        $this->actingAs($professor)->get('/student/curriculum')->assertForbidden();
+    }
+
+    public function test_grades_page_lists_every_earlier_semester_newest_first(): void
+    {
+        $this->seed(\Database\Seeders\CurriculumSeeder::class);
+        $student = $this->makeStudent();
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $take = function (string $code, string $year, string $semester) use ($student, $professor) {
+            $term = \App\Models\AcademicTerm::firstOrCreate(['school_year' => $year, 'semester' => $semester], ['grades_released' => true]);
+            $section = \App\Models\ClassSection::create([
+                'subject_id' => \App\Models\Subject::where('code', $code)->value('id'), 'term_id' => $term->id,
+                'section_code' => 'BSIT-1A', 'faculty_id' => $professor->id, 'sheet_status' => 'Approved',
+            ]);
+            $enrollment = \App\Models\Enrollment::create(['student_id' => $student->id, 'section_id' => $section->id]);
+            \App\Models\Grade::create(['enrollment_id' => $enrollment->id, 'midterm_grade' => 2.00, 'final_grade' => 2.00, 'final_rating' => 2.00, 'remarks' => 'Passed', 'encoded_by' => $professor->id]);
+
+            return $term;
+        };
+
+        // Created out of order on purpose: the page sorts by school year and semester, not by when a term was added.
+        $take('IT 221', '2025-2026', '2nd');
+        $first = $take('IT 111', '2024-2025', '1st');
+        $take('IT 211', '2025-2026', '1st');
+        $take('IT 121', '2024-2025', '2nd');
+
+        $this->actingAs($student->user)->get('/student/grades')->assertOk()
+            ->assertSeeInOrder(['2nd Sem 2025-2026', '1st Sem 2025-2026', '2nd Sem 2024-2025', '1st Sem 2024-2025'])
+            ->assertSee('Data Structures and Algorithms');
+        $this->actingAs($student->user)->get("/student/grades?term={$first->id}")->assertOk()
+            ->assertSee('Introduction to Computing')->assertDontSee('Data Structures and Algorithms');
+    }
+
+    public function test_grades_page_lists_the_subjects_of_the_current_semester_without_grades(): void
+    {
+        $student = $this->makeStudent();
+        $professor = $this->makeUser('Professor', ['department_id' => $this->ccs()]);
+        $section = $this->makeSection($professor, $student);
+
+        // Not enrolled anywhere: nothing to list.
+        $this->actingAs($this->makeStudent()->user)->get('/student/grades')->assertOk()->assertSee('You have no subjects or released grades yet');
+
+        // The professor has already encoded grades, but the term is not released, so the student sees the subject only.
+        \App\Models\Grade::create(['enrollment_id' => $section->enrollments->first()->id, 'prelim_grade' => 1.25, 'midterm_grade' => 1.25, 'final_grade' => 1.25, 'final_rating' => 1.25, 'remarks' => 'Passed', 'encoded_by' => $professor->id]);
+        $this->actingAs($student->user)->get('/student/grades')->assertOk()
+            ->assertSee('1st Sem 2026-2027')->assertSee('current')
+            ->assertSee($section->subject->code)->assertSee($section->subject->title)->assertSee($professor->name)
+            ->assertSee('Units enrolled')->assertSee('No grade yet')
+            ->assertDontSee('1.25')->assertDontSee('Passed');
+
+        // After approval and release the same tab shows the grades.
+        $section->update(['sheet_status' => 'Approved']);
+        $this->term->update(['grades_released' => true]);
+        $this->actingAs($student->user)->get('/student/grades')->assertOk()->assertSee('1.25')->assertSee('Passed')->assertDontSee('No grade yet');
     }
 }

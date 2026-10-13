@@ -42,16 +42,9 @@ class EnrollmentQueueService
             throw new DomainException('You already have a queue number today.');
         }
 
-        $category = EnrollmentService::category($student);
-        if ($category === 'Regular') {
-            throw new DomainException('Regular students enroll with their block section and do not need a queue number.');
-        }
-        // A student who already holds a slot this term may line up again without taking another one.
-        $departmentId = $student->program->department_id;
-        if (! EnrollmentService::holdsSlot($student, $term->id) && EnrollmentService::remaining($term->id, $departmentId, $category) === 0) {
-            throw new DomainException(EnrollmentService::approved($term->id, $departmentId, $category) === 0
-                ? "No enrollment slots have been approved yet for {$category} students of your department."
-                : "All approved enrollment slots for {$category} students of your department are taken.");
+        // The line at the Registrar window is for irregular students; regular students enroll online by themselves.
+        if (EnrollmentService::category($student) === 'Regular') {
+            throw new DomainException('Regular students enroll online once the Registrar opens enrollment and do not need a queue number.');
         }
 
         return DB::transaction(function () use ($student, $term) {

@@ -15,13 +15,13 @@
     @endif
 
     @if (! $term)
-        <div class="panel"><p class="muted mb-0">No released grades yet.</p></div>
+        <div class="panel"><p class="muted mb-0">You have no subjects or released grades yet.</p></div>
     @else
         <ul class="nav nav-tabs mb-4 d-print-none">
             @foreach ($terms as $option)
                 <li class="nav-item">
                     <a class="nav-link {{ $option->id === $term->id ? 'active' : '' }}" href="{{ route('student.grades', ['term' => $option->id]) }}" @if ($option->id === $term->id) aria-current="page" @endif>
-                        {{ $option->semester }} Sem {{ $option->school_year }}
+                        {{ $option->semester }} Sem {{ $option->school_year }}@if (! $option->grades_released) · current @endif
                     </a>
                 </li>
             @endforeach
@@ -34,7 +34,7 @@
                     <div class="value big">{{ $grades['gwa'] !== null ? number_format($grades['gwa'], 2) : '—' }}</div>
                 </div>
                 <div>
-                    <div class="stat-label">Units earned</div>
+                    <div class="stat-label">{{ $pending ? 'Units enrolled' : 'Units earned' }}</div>
                     <div class="value">{{ $grades['units'] }}</div>
                 </div>
                 <div>
@@ -48,7 +48,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Code</th><th scope="col">Subject</th><th scope="col" class="num">Units</th>
-                            <th scope="col" class="num">Midterm</th><th scope="col" class="num">Final</th>
+                            <th scope="col" class="num">Prelim</th><th scope="col" class="num">Midterm</th><th scope="col" class="num">Final</th>
                             <th scope="col" class="num">Rating</th><th scope="col">Remarks</th>
                         </tr>
                     </thead>
@@ -61,13 +61,14 @@
                                     <div class="small muted">{{ $row->section->faculty->name }}</div>
                                 </td>
                                 <td class="num">{{ $row->section->subject->units }}</td>
+                                <td class="num muted">{{ $row->grade?->prelim_grade !== null ? number_format($row->grade->prelim_grade, 2) : '—' }}</td>
                                 <td class="num muted">{{ $row->grade?->midterm_grade !== null ? number_format($row->grade->midterm_grade, 2) : '—' }}</td>
                                 <td class="num muted">{{ $row->grade?->final_grade !== null ? number_format($row->grade->final_grade, 2) : '—' }}</td>
                                 <td class="num fw-semibold">{{ $row->grade?->final_rating !== null ? number_format($row->grade->final_rating, 2) : '—' }}</td>
-                                <td>@if ($row->grade?->remarks) @include('partials.status', ['status' => $row->grade->remarks]) @endif</td>
+                                <td>@if ($row->grade?->remarks) @include('partials.status', ['status' => $row->grade->remarks]) @elseif ($pending) <span class="muted small">No grade yet</span> @endif</td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="muted">No approved grade sheets for this term yet.</td></tr>
+                            <tr><td colspan="8" class="muted">No approved grade sheets for this term yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

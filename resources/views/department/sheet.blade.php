@@ -18,12 +18,13 @@
     <div class="card mb-4">
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
-                <thead><tr><th scope="col">Student no.</th><th scope="col">Name</th><th scope="col" class="text-end">Midterm</th><th scope="col" class="text-end">Final</th><th scope="col" class="text-end">Rating</th><th scope="col">Remarks</th></tr></thead>
+                <thead><tr><th scope="col">Student no.</th><th scope="col">Name</th><th scope="col" class="text-end">Prelim</th><th scope="col" class="text-end">Midterm</th><th scope="col" class="text-end">Final</th><th scope="col" class="text-end">Rating</th><th scope="col">Remarks</th></tr></thead>
                 <tbody>
                     @foreach ($enrollments as $enrollment)
                         <tr>
                             <td>{{ $enrollment->student->student_no }}</td>
                             <td>{{ $enrollment->student->full_name }}</td>
+                            <td class="text-end">{{ $enrollment->grade?->prelim_grade !== null ? number_format($enrollment->grade->prelim_grade, 2) : '—' }}</td>
                             <td class="text-end">{{ $enrollment->grade?->midterm_grade !== null ? number_format($enrollment->grade->midterm_grade, 2) : '—' }}</td>
                             <td class="text-end">{{ $enrollment->grade?->final_grade !== null ? number_format($enrollment->grade->final_grade, 2) : '—' }}</td>
                             <td class="text-end fw-semibold">{{ $enrollment->grade?->final_rating !== null ? number_format($enrollment->grade->final_rating, 2) : '—' }}</td>

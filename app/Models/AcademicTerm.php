@@ -10,7 +10,7 @@ class AcademicTerm extends Model
 
     protected $guarded = [];
 
-    protected $casts = ['is_active' => 'boolean', 'encoding_open' => 'boolean', 'grades_released' => 'boolean'];
+    protected $casts = ['is_active' => 'boolean', 'encoding_open' => 'boolean', 'grades_released' => 'boolean', 'enrollment_open' => 'boolean'];
 
     public static function active(): ?self
     {

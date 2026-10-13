@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicTerm;
 use App\Models\Clearance;
+use App\Models\CurriculumSubject;
 use App\Models\DocumentRequest;
 use App\Models\DocumentType;
 use App\Models\Enrollment;
@@ -102,7 +103,9 @@ class StudentPortalController extends Controller
             ->whereIn('id', Enrollment::where('student_id', $student->id)
                 ->join('class_sections', 'class_sections.id', '=', 'enrollments.section_id')
                 ->select('class_sections.term_id'))
-            ->orderByDesc('school_year')->orderByDesc('id')->get();
+            ->get()
+            // Newest first: by school year, then Summer, 2nd, 1st.
+            ->sortByDesc(fn ($term) => $term->school_year.array_search($term->semester, ['1st', '2nd', 'Summer'], true))->values();
     }
 
     public function overview(Request $request)
@@ -162,14 +165,79 @@ class StudentPortalController extends Controller
         $request->validate(['term' => ['nullable', 'integer']]);
 
         $terms = $this->releasedTerms($student);
+
+        // The current semester comes first: its subjects are listed as soon as the student is enrolled, without grades.
+        $current = AcademicTerm::where('grades_released', false)->where('is_active', true)->first();
+        $subjects = $current
+            ? Enrollment::with(['section.subject', 'section.faculty'])->where('student_id', $student->id)
+                ->whereHas('section', fn ($q) => $q->where('term_id', $current->id))->get()->sortBy('section.subject.code')->values()
+            : collect();
+        if ($subjects->isNotEmpty()) {
+            $terms = $terms->prepend($current);
+        }
+
         $term = $terms->firstWhere('id', (int) $request->query('term')) ?? $terms->first();
+        $pending = $term && ! $term->grades_released;
+        if ($pending) {
+            // Grades stay hidden until the Registrar releases the term, even when a professor has already encoded them.
+            $subjects->each->setRelation('grade', null);
+            $grades = ['rows' => $subjects, 'gwa' => null, 'units' => $subjects->sum('section.subject.units'), 'allPassed' => false];
+        } else {
+            $grades = $term ? $this->termGrades($student, $term) : null;
+        }
 
         return view('student.grades', [
             'terms' => $terms,
             'term' => $term,
-            'grades' => $term ? $this->termGrades($student, $term) : null,
-            'unreleased' => AcademicTerm::where('grades_released', false)->where('is_active', true)->first(),
+            'pending' => $pending,
+            'grades' => $grades,
+            'unreleased' => $current,
             'certificate' => DocumentType::where('name', 'Certificate of Grades')->where('is_active', true)->first(),
+        ]);
+    }
+
+    /** The whole curriculum of the student's program, by year level and semester, with what the student has taken. */
+    public function curriculum(Request $request)
+    {
+        $student = $this->student($request)->load('program');
+        $activeTermId = AcademicTerm::active()?->id;
+
+        $rows = CurriculumSubject::with('subject')->where('program_id', $student->program_id)->get()
+            ->sortBy(fn ($row) => sprintf('%d-%d-%s', $row->year_level, array_search($row->semester, ['1st', '2nd', 'Summer'], true), $row->subject->code));
+
+        // One entry per subject. A released grade wins over a current enrollment, and Passed wins over another try.
+        $progress = [];
+        $taken = Enrollment::with(['section.term', 'section.subject', 'grade'])->where('student_id', $student->id)->get();
+        foreach ($taken as $enrollment) {
+            $section = $enrollment->section;
+            $released = $section->term->grades_released && $section->sheet_status === 'Approved' && $enrollment->grade?->remarks;
+            if ($released) {
+                $entry = ['status' => $enrollment->grade->remarks, 'rating' => $enrollment->grade->final_rating];
+            } elseif ($section->term_id === $activeTermId) {
+                $entry = ['status' => 'Enrolled'];
+            } else {
+                continue;
+            }
+            $current = $progress[$section->subject_id]['status'] ?? null;
+            if ($current !== 'Passed' && ($entry['status'] !== 'Enrolled' || $current === null)) {
+                $progress[$section->subject_id] = $entry;
+            }
+        }
+
+        $passed = $rows->filter(fn ($row) => ($progress[$row->subject_id]['status'] ?? null) === 'Passed');
+
+        return view('student.curriculum', [
+            'student' => $student,
+            'years' => $rows->groupBy('year_level')->map(fn ($year) => $year->groupBy('semester')),
+            'yearNames' => [1 => 'First Year', 2 => 'Second Year', 3 => 'Third Year', 4 => 'Fourth Year', 5 => 'Fifth Year'],
+            'progress' => $progress,
+            'summary' => [
+                'subjects' => $rows->count(),
+                'passed' => $passed->count(),
+                'units' => $rows->sum('subject.units'),
+                'unitsEarned' => $passed->sum('subject.units'),
+                'enrolled' => $rows->filter(fn ($row) => ($progress[$row->subject_id]['status'] ?? null) === 'Enrolled')->count(),
+            ],
         ]);
     }
 
@@ -225,28 +293,32 @@ class StudentPortalController extends Controller
         $student = $this->student($request)->load('program');
         $term = AcademicTerm::active();
         $category = EnrollmentService::category($student);
+        $taken = $term ? Enrollment::where('student_id', $student->id)->whereHas('section', fn ($q) => $q->where('term_id', $term->id))->pluck('section_id') : collect();
 
-        // Regular students do not line up: they enroll in their block once the department opens enrollment.
+        // Regular students do not line up: once the Registrar opens enrollment they take the subjects of their year level.
         if ($category === 'Regular') {
-            $sections = $term ? EnrollmentService::blockSections($student, $term) : collect();
-            $taken = Enrollment::where('student_id', $student->id)->whereIn('section_id', $sections->pluck('id'))->count();
+            $subjects = $term ? EnrollmentService::regularSubjects($student, $term) : collect();
+            $offered = $subjects->pluck('section')->filter();
 
             return view('student.enrollment', [
                 'term' => $term,
                 'student' => $student,
-                'sections' => $sections,
-                'open' => $term && EnrollmentService::blockOpen($term->id, $student->program->department_id),
-                'enrolled' => $sections->isNotEmpty() && $taken === $sections->count(),
+                'subjects' => $subjects,
+                'offered' => $offered->count(),
+                'open' => (bool) $term?->enrollment_open,
+                'enrolled' => $offered->isNotEmpty() && $offered->every(fn ($section) => $taken->contains($section->id)),
             ]);
         }
 
         $ticket = EnrollmentQueueService::openTicket($student);
+        $advised = $term ? EnrollmentService::advisedSections($student, $term) : collect();
 
         return view('student.queue', [
             'term' => $term,
             'category' => $category,
-            'slots' => $term ? EnrollmentService::remaining($term->id, $student->program->department_id, $category) : 0,
-            'holdsSlot' => $term && EnrollmentService::holdsSlot($student, $term->id),
+            // Irregular students enroll only in the subjects their department opened for them.
+            'advised' => $advised,
+            'advisedEnrolled' => $advised->isNotEmpty() && $advised->every(fn ($section) => $taken->contains($section->id)),
             'ticket' => $ticket,
             'ahead' => $ticket ? EnrollmentQueueService::ahead($ticket) : 0,
             'serving' => QueueTicket::today()->where('status', 'Serving')->orderBy('number')->get(),
@@ -256,19 +328,22 @@ class StudentPortalController extends Controller
         ]);
     }
 
-    public function enrollBlock(Request $request)
+    /** Regular students enroll in the subjects of their year level; irregular students in the ones opened for them. */
+    public function enroll(Request $request)
     {
         $student = $this->student($request);
 
         try {
-            $added = EnrollmentService::enrollBlock($student);
+            $added = EnrollmentService::category($student) === 'Regular'
+                ? EnrollmentService::enrollRegular($student)
+                : EnrollmentService::enrollAdvised($student);
         } catch (DomainException $e) {
             return back()->withErrors(['queue' => $e->getMessage()]);
         }
 
         return redirect()->route('student.queue')->with('status', $added
-            ? "You are enrolled in block {$student->block_section}: {$added} ".($added === 1 ? 'subject' : 'subjects').' added.'
-            : "You were already enrolled in every subject of block {$student->block_section}.");
+            ? "You are enrolled: {$added} ".($added === 1 ? 'subject' : 'subjects').' added.'
+            : 'You were already enrolled in these subjects.');
     }
 
     public function joinQueue(Request $request)
