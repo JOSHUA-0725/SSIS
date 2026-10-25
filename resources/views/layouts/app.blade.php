@@ -19,6 +19,7 @@
             ['Overview', 'dashboard', 'grid'], ['Clearance', 'student.clearance', 'clipboard'], ['Enrollment', 'student.queue', 'list'], ['Grades', 'student.grades', 'book-open'], ['Curriculum', 'student.curriculum', 'graduation'],
             ['Document requests', 'student.requests', 'file'],
             ['Payments', 'student.payments', 'wallet', $student ? \App\Services\LedgerService::payables($student)->where('payable', '>', 0)->count() : 0],
+            ['Activity log', 'student.activity', 'shield'],
         ]],
         'Registrar' => ['Registrar Module', [
             ['Overview', 'dashboard', 'grid'], ['Students', 'registrar.students', 'users'],

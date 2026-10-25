@@ -366,7 +366,7 @@ class WorkflowTest extends SsisTestCase
         $section = $this->makeSection($faculty, $student);
 
         $pages = [
-            [$student->user, ['/dashboard', '/student/grades', '/student/curriculum', '/student/clearance', '/student/payments', '/student/requests', '/profile', '/notifications']],
+            [$student->user, ['/dashboard', '/student/grades', '/student/curriculum', '/student/activity', '/student/clearance', '/student/payments', '/student/requests', '/profile', '/notifications']],
             [$this->makeUser('Registrar'), ['/dashboard', '/registrar/students', '/registrar/students/new', "/registrar/students/{$student->id}", '/registrar/terms', '/registrar/requests', '/clearance']],
             [$this->makeUser('Cashier'), ['/dashboard', '/cashier/payments', '/cashier/payments?q=Last', "/cashier/students/{$student->id}", '/cashier/proofs', '/cashier/report', '/cashier/report?export=csv', '/clearance']],
             [$faculty, ['/dashboard', '/faculty/classes', "/faculty/classes/{$section->id}"]],
