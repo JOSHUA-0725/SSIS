@@ -36,7 +36,13 @@
 
             <div class="mb-4">
                 <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
+                <div class="password-field">
+                    <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
+                    <button type="button" class="password-toggle" data-password-toggle="password" aria-label="Show password" aria-pressed="false" title="Show password">
+                        <span data-eye="show">@include('partials.icon', ['name' => 'eye'])</span>
+                        <span data-eye="hide" hidden>@include('partials.icon', ['name' => 'eye-off'])</span>
+                    </button>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-primary btn-lg w-100" data-retry-lock>

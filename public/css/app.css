@@ -2431,3 +2431,29 @@ a.card:hover::before {
 /* Subject loads: keep the choices wide enough to read the whole name. */
 .load-select { min-width: 12.5rem; }
 .load-select-sm { min-width: 7.5rem; }
+
+/* Sign-in: the eye button sits inside the password box. */
+.password-field { position: relative; }
+.password-field .form-control { padding-right: 2.9rem; }
+.password-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.9rem;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0 12px 12px 0;
+    background: none;
+    color: inherit;
+    opacity: 0.7;
+    cursor: pointer;
+}
+.password-toggle:hover, .password-toggle:focus-visible { opacity: 1; }
+.password-toggle:focus-visible { outline: 2px solid rgba(0, 220, 110, 0.9); outline-offset: -3px; }
+.password-toggle span { display: flex; }
+.password-toggle span[hidden] { display: none; }
+.auth-card .password-toggle { color: #fff; }

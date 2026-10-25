@@ -1,5 +1,25 @@
-// Sign-in page: counts down the wait after too many attempts and holds the Sign in button until it ends.
+// Sign-in page: the show-password button, and the countdown after too many attempts.
 // Kept in a file because the Content Security Policy blocks inline scripts.
+
+// The eye button beside the password shows what was typed, and hides it again.
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        const input = document.getElementById(button.dataset.passwordToggle);
+        if (!input) {
+            return;
+        }
+        button.addEventListener('click', () => {
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            button.setAttribute('aria-pressed', String(show));
+            button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+            button.title = show ? 'Hide password' : 'Show password';
+            button.querySelector('[data-eye="show"]').hidden = show;
+            button.querySelector('[data-eye="hide"]').hidden = !show;
+            input.focus();
+        });
+    });
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     const box = document.querySelector('[data-retry-seconds]');
