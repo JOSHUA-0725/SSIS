@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:Student')->prefix('student')->name('student.')->group(function () {
         Route::get('/grades', [StudentPortalController::class, 'grades'])->name('grades');
         Route::get('/curriculum', [StudentPortalController::class, 'curriculum'])->name('curriculum');
+        Route::get('/activity', [StudentPortalController::class, 'activity'])->name('activity');
         Route::get('/clearance', [StudentPortalController::class, 'clearance'])->name('clearance');
         Route::get('/clearance/slip', [StudentPortalController::class, 'clearanceSlip'])->name('clearance.slip');
         Route::get('/queue', [StudentPortalController::class, 'queue'])->name('queue');

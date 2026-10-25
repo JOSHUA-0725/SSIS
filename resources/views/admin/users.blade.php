@@ -27,6 +27,7 @@
                             <td class="text-end">
                                 <div class="d-flex gap-2 justify-content-end">
                                     <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                    <a href="{{ route('admin.audit', ['q' => $user->username]) }}" class="btn btn-sm btn-outline-secondary">Activity</a>
                                     <form method="POST" action="{{ route('admin.users.reset', $user) }}" data-confirm="Reset the password of {{ $user->username }}? Any lockout is also removed.">
                                         @csrf
                                         <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">Reset password</button>

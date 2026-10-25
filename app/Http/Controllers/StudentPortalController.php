@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicTerm;
+use App\Models\AuditLog;
 use App\Models\Clearance;
 use App\Models\CurriculumSubject;
 use App\Models\DocumentRequest;
@@ -193,6 +194,35 @@ class StudentPortalController extends Controller
             'grades' => $grades,
             'unreleased' => $current,
             'certificate' => DocumentType::where('name', 'Certificate of Grades')->where('is_active', true)->first(),
+        ]);
+    }
+
+    /** What happened with the student's account and records: sign-ins, failed attempts, requests, and enrollment. */
+    public function activity(Request $request)
+    {
+        $student = $this->student($request);
+        $user = $request->user();
+        $data = $request->validate(['show' => ['nullable', Rule::in(['all', 'security', 'records'])]]);
+        $filter = $data['show'] ?? 'all';
+        $requestIds = DocumentRequest::where('student_id', $student->id)->pluck('id');
+
+        // Entries the student made, and entries others made on the student's account, record, or requests.
+        $mine = fn ($q) => $q->where('user_id', $user->id)
+            ->orWhere(fn ($w) => $w->where('table_name', 'users')->where('record_id', $user->id))
+            ->orWhere(fn ($w) => $w->where('table_name', 'students')->where('record_id', $student->id))
+            ->orWhere(fn ($w) => $w->where('table_name', 'document_requests')->whereIn('record_id', $requestIds));
+        $since = now()->subDays(30);
+
+        return view('student.activity', [
+            'user' => $user,
+            'filter' => $filter,
+            'lastLogin' => AuditLog::where('user_id', $user->id)->where('action', 'LOGIN')->latest('id')->first(),
+            'failed' => AuditLog::where('user_id', $user->id)->where('action', 'LOGIN_FAILED')->where('created_at', '>=', $since)->count(),
+            'locked' => AuditLog::where('user_id', $user->id)->where('action', 'ACCOUNT_LOCKED')->where('created_at', '>=', $since)->count(),
+            'logs' => AuditLog::with('user')->where($mine)
+                ->when($filter === 'security', fn ($q) => $q->whereIn('action', AuditLog::SECURITY))
+                ->when($filter === 'records', fn ($q) => $q->whereNotIn('action', AuditLog::SECURITY))
+                ->latest('id')->paginate(20)->withQueryString(),
         ]);
     }
 

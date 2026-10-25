@@ -541,4 +541,40 @@ class PortalFeaturesTest extends SsisTestCase
         $this->term->update(['grades_released' => true]);
         $this->actingAs($student->user)->get('/student/grades')->assertOk()->assertSee('1.25')->assertSee('Passed')->assertDontSee('No grade yet');
     }
+
+    public function test_student_sees_the_activity_of_their_own_account_only(): void
+    {
+        $student = $this->makeStudent();
+        $other = $this->makeStudent();
+
+        // A wrong password, then a real sign-in from the sign-in form.
+        $this->post('/login', ['portal' => 'student', 'username' => $student->user->username, 'password' => 'wrong']);
+        $this->post('/login', ['portal' => 'student', 'username' => $student->user->username, 'password' => self::PASSWORD])->assertRedirect('/dashboard');
+        $docRequest = \App\Services\DocumentRequestService::file($student, \App\Models\DocumentType::first(), 1, 'Employment');
+        $this->actingAs($student->user)->get('/admin/users')->assertForbidden();
+
+        // Things other people did: another student's sign-in, and the Registrar moving this student's request.
+        \App\Models\AuditLog::record('LOGIN', 'users', $other->user_id, null, null, $other->user_id);
+        $registrar = $this->makeUser('Registrar');
+        \App\Models\AuditLog::record('UPDATE', 'document_requests', $docRequest->id, ['status' => 'Paid'], ['status' => 'Processing'], $registrar->id);
+
+        $this->actingAs($student->user)->get('/student/activity')->assertOk()
+            ->assertSee('Last sign-in')->assertSee('Signed in')->assertSee('Wrong password entered')
+            ->assertSee('Filed a document request ('.$docRequest->reference_no.')')
+            ->assertSee('Tried to open a page that is not allowed (/admin/users)')
+            ->assertSee('Document request changed to Processing from Paid')->assertSee($registrar->name)
+            ->assertSee('You');
+
+        // The security tab leaves out requests; the records tab leaves out sign-ins.
+        $this->actingAs($student->user)->get('/student/activity?show=security')->assertOk()->assertSee('Wrong password entered')->assertDontSee('Filed a document request');
+        $this->actingAs($student->user)->get('/student/activity?show=records')->assertOk()->assertSee('Filed a document request')->assertDontSee('Wrong password entered');
+
+        // The other student's page shows only their own sign-in.
+        $this->actingAs($other->user)->get('/student/activity')->assertOk()->assertDontSee('Wrong password entered')->assertDontSee($docRequest->reference_no);
+        $this->actingAs($this->makeUser('Cashier'))->get('/student/activity')->assertForbidden();
+
+        // The Administrator can open any account's entries from the user list.
+        $this->actingAs($this->makeUser('Administrator'))->get('/admin/users?group=students')->assertOk()
+            ->assertSee(route('admin.audit', ['q' => $student->user->username]), false);
+    }
 }
